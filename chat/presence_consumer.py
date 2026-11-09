@@ -14,6 +14,14 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             return
 
         await self.channel_layer.group_add(presence.PRESENCE_GROUP, self.channel_name)
+        # Per-user group so logout can force-close every socket of this
+        # account at once (all tabs/devices) — see presence.close_user_sockets.
+        try:
+            await self.channel_layer.group_add(
+                presence.user_group(self.user.id), self.channel_name
+            )
+        except Exception:
+            pass
 
         # Heal sockets that died without disconnecting BEFORE announcing, so
         # a connecting client immediately sees corrected statuses.
@@ -30,9 +38,21 @@ class PresenceConsumer(AsyncWebsocketConsumer):
                 await self.channel_layer.group_discard(presence.PRESENCE_GROUP, self.channel_name)
             except Exception:
                 pass
+            try:
+                await self.channel_layer.group_discard(
+                    presence.user_group(self.user.id), self.channel_name
+                )
+            except Exception:
+                pass
             # Marks offline + announces only when this was the last
-            # connection (after the navigation grace period).
+            # connection (after the navigation grace period). A logout has
+            # already forced the row offline, so this becomes a no-op there.
             await presence.connection_closed(self.user.id, self.user.username)
+
+    async def force_disconnect(self, event):
+        # The account logged out (or was invalidated) — close this socket.
+        # The DB presence was already forced offline by the logout view.
+        await self.close()
 
     async def receive(self, text_data=None, bytes_data=None):
         if text_data is None:

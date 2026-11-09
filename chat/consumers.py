@@ -30,6 +30,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except Exception:
             pass
 
+        # Per-user group so logout can force-close every socket of this
+        # account (this DM + the presence socket) in one shot.
+        try:
+            await self.channel_layer.group_add(
+                presence.user_group(self.me.id), self.channel_name
+            )
+        except Exception:
+            pass
+
         # Presence is counted (not blindly set): the user may have other
         # tabs/devices connected — see chat/presence.py.
         await presence.connection_opened(self.me.id, self.me.username)
@@ -52,12 +61,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
         except Exception:
             pass
+        try:
+            await self.channel_layer.group_discard(
+                presence.user_group(self.me.id), self.channel_name
+            )
+        except Exception:
+            pass
 
         # Only announce "offline" to this room when the user is really gone
-        # (last connection closed and the grace period expired).
+        # (last connection closed and the grace period expired). After a
+        # logout the row is already offline, so this is a harmless no-op.
         last_seen = await presence.connection_closed(self.me.id, self.me.username)
         if last_seen is not None:
             await self._announce_status('offline', last_seen)
+
+    async def force_disconnect(self, event):
+        # The account logged out (or was invalidated) — close this socket.
+        # DB presence was already forced offline by the logout view, so the
+        # disconnect below will not re-stamp or re-announce anything.
+        await self.close()
 
     async def receive(self, text_data=None, bytes_data=None):
         if text_data is None:

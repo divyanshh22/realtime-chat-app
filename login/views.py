@@ -100,9 +100,46 @@ def register_view(request):
 
 @login_required(login_url='login-view')
 def logout_view(request):
+    # Capture identity BEFORE logout() clears request.user.
+    uid, uname = request.user.id, request.user.username
+
+    # Presence cleanup is done here instead of relying on the browser to
+    # close its WebSockets (which is delayed by proxies and can be skipped
+    # entirely by a lingering/background socket). Logout must, for everyone:
+    #   1. mark this account offline in the DB right now,
+    #   2. stamp last_seen at the actual logout moment,
+    #   3. broadcast OFFLINE over the global presence group, and
+    #   4. force-close every open socket of this account (all tabs/devices).
+    from chat import presence as chat_presence
+
+    chat_presence.force_offline_and_announce(uid, uname)
+    chat_presence.close_user_sockets(uid)
+    _clear_redis_presence(uid)
+
     logout(request)
     messages.success(request, "Logged out successfully!")
     return redirect('login-view')
+
+
+def _clear_redis_presence(user_id):
+    """Drop any Redis presence leftovers for this account (defensive).
+
+    The database is now the source of truth for presence; the Redis
+    ``online_users`` / ``last_seen`` hashes are only read as a fallback and
+    nothing in this codebase writes them. A stale entry left behind by an
+    older deployment could still make the inbox show the user online after
+    logout (the inbox ORs the Redis flag), so clear it when Redis is enabled.
+    """
+    try:
+        from chat.views import _redis_client
+
+        r = _redis_client()
+        if r is None:
+            return
+        r.hdel('online_users', str(user_id))
+        r.hdel('last_seen', str(user_id))
+    except Exception:
+        pass  # presence is already correct in the DB; Redis cleanup is best-effort
 
 
 @login_required(login_url='login-view')

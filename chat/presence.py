@@ -105,7 +105,13 @@ def commit_offline(user_id, when=None):
     """
     when = when or timezone.now()
     CustomUser = get_user_model()
-    updated = CustomUser.objects.filter(id=user_id, connection_count=0).update(
+    # ``is_online=True`` is part of the guard on purpose: after an intentional
+    # logout (``force_offline``) the row is already offline, so a socket that
+    # closes a moment later must not re-stamp ``last_seen`` or re-announce a
+    # transition that was already broadcast.
+    updated = CustomUser.objects.filter(
+        id=user_id, connection_count=0, is_online=True
+    ).update(
         is_online=False,
         last_seen=when,
     )
@@ -122,6 +128,45 @@ def commit_offline(user_id, when=None):
 def _stale_filter(cutoff):
     """Rows flagged online whose heartbeat is missing or too old."""
     return Q(presence_heartbeat__lt=cutoff) | Q(presence_heartbeat__isnull=True)
+
+
+def user_group(user_id):
+    """Channel-layer group that holds every open socket of one account.
+
+    Both consumers join it on connect and leave on disconnect, so logout can
+    fan a single ``force_disconnect`` out to all of the user's tabs/devices at
+    once (see ``close_user_sockets``).
+    """
+    return f"user_presence_{user_id}"
+
+
+def force_offline(user_id, when=None):
+    """Intentional logout: clear ALL presence state for the account at once.
+
+    Unlike ``commit_offline`` (which decrements one socket and waits for the
+    grace period) this is authoritative: it zeroes ``connection_count`` for
+    every tab/device, flips ``is_online`` off, and stamps ``last_seen`` at the
+    logout moment. A socket that closes a moment later is a no-op — its
+    ``connection_closed`` floors the count at 0 and ``commit_offline`` no-ops
+    because the row is already offline.
+
+    Returns ``(username, last_seen_iso)`` or ``None`` if the user is missing.
+    """
+    when = when or timezone.now()
+    CustomUser = get_user_model()
+    updated = CustomUser.objects.filter(id=user_id).update(
+        connection_count=0,
+        is_online=False,
+        last_seen=when,
+    )
+    if not updated:
+        return None
+    username = CustomUser.objects.filter(id=user_id).values_list(
+        "username", flat=True
+    ).first()
+    if username is None:
+        return None
+    return username, when.isoformat()
 
 
 def sweep_stale():
@@ -223,6 +268,39 @@ async def announce(user_id, username, status, last_seen=None):
 def announce_sync(user_id, username, status, last_seen=None):
     """Synchronous wrapper for use from views."""
     async_to_sync(announce)(user_id, username, status, last_seen)
+
+
+def force_offline_and_announce(user_id, username, when=None):
+    """Synchronous logout path: mark offline in the DB, then broadcast it.
+
+    Returns the ``(username, last_seen_iso)`` written, or ``None`` if the row
+    vanished. Called from ``logout_view`` so every connected viewer learns the
+    account left **immediately**, instead of waiting for socket teardown.
+    """
+    result = force_offline(user_id, when)
+    if result is None:
+        return None
+    _, last_seen = result
+    announce_sync(user_id, username, "offline", last_seen)
+    return result
+
+
+def close_user_sockets(user_id):
+    """Tell every open socket of this account to close (best effort).
+
+    Sends ``force_disconnect`` to the per-user group both consumers join. The
+    group layer drops the message when the layer is missing or the user has no
+    open sockets, so this is always safe to call.
+    """
+    layer = get_channel_layer()
+    if layer is None:
+        return
+    try:
+        async_to_sync(layer.group_send)(
+            user_group(user_id), {"type": "force_disconnect"}
+        )
+    except Exception:
+        pass  # closing sockets is best-effort; the DB already says offline
 
 
 async def sweep_and_announce():
