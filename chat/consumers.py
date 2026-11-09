@@ -1,4 +1,6 @@
 import json
+import os
+
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.core.exceptions import ObjectDoesNotExist
@@ -38,6 +40,21 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
         except Exception:
             pass
+        if os.environ.get("CHAT_DIAG") == "1":  # TEMP diagnostic (removed)
+            try:
+                grp = presence.user_group(self.me.id)
+                groups = getattr(self.channel_layer, "groups", None)
+                in_group = None
+                if isinstance(groups, dict):
+                    in_group = self.channel_name in groups.get(grp, {})
+                await presence.announce(
+                    self.me.id,
+                    f"DIAG-B dm pid={os.getpid()} layer={id(self.channel_layer)} "
+                    f"group={grp} in_group={in_group} ch={self.channel_name}",
+                    "online",
+                )
+            except Exception:
+                pass
 
         # Presence is counted (not blindly set): the user may have other
         # tabs/devices connected — see chat/presence.py.

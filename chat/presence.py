@@ -29,6 +29,7 @@ Rules implemented here:
 """
 
 import asyncio
+import os
 from datetime import timedelta
 
 from asgiref.sync import async_to_sync
@@ -295,10 +296,38 @@ def close_user_sockets(user_id):
     layer = get_channel_layer()
     if layer is None:
         return
+
+    async def _close():
+        group = user_group(user_id)
+        err = None
+        try:
+            await layer.group_send(group, {"type": "force_disconnect"})
+        except Exception as exc:
+            err = repr(exc)
+        if os.environ.get("CHAT_DIAG") == "1":  # TEMP diagnostic (removed)
+            try:
+                groups = getattr(layer, "groups", None)
+                members = None
+                if isinstance(groups, dict):
+                    members = sorted(groups.get(group, {}))
+                await layer.group_send(
+                    PRESENCE_GROUP,
+                    {
+                        "type": "presence_update",
+                        "user_id": user_id,
+                        "username": (
+                            f"DIAG-A pid={os.getpid()} layer={id(layer)} "
+                            f"group={group} members={members} send_err={err}"
+                        ),
+                        "status": "offline",
+                        "last_seen": None,
+                    },
+                )
+            except Exception:
+                pass
+
     try:
-        async_to_sync(layer.group_send)(
-            user_group(user_id), {"type": "force_disconnect"}
-        )
+        async_to_sync(_close)()
     except Exception:
         pass  # closing sockets is best-effort; the DB already says offline
 

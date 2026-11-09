@@ -1,4 +1,6 @@
 import json
+import os
+
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 
@@ -22,6 +24,21 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             )
         except Exception:
             pass
+        if os.environ.get("CHAT_DIAG") == "1":  # TEMP diagnostic (removed)
+            try:
+                grp = presence.user_group(self.user.id)
+                groups = getattr(self.channel_layer, "groups", None)
+                in_group = None
+                if isinstance(groups, dict):
+                    in_group = self.channel_name in groups.get(grp, {})
+                await presence.announce(
+                    self.user.id,
+                    f"DIAG-B presence pid={os.getpid()} layer={id(self.channel_layer)} "
+                    f"group={grp} in_group={in_group} ch={self.channel_name}",
+                    "online",
+                )
+            except Exception:
+                pass
 
         # Heal sockets that died without disconnecting BEFORE announcing, so
         # a connecting client immediately sees corrected statuses.

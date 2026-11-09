@@ -47,6 +47,8 @@ services:
           name: chattingapp
       - key: USE_REDIS
         value: "false" # in-memory channel layer — correct for a single instance
+      - key: CHAT_DIAG
+        value: "1" # TEMP: logout force-close diagnostics (remove after root-cause)
       - key: DATABASE_URL
         fromDatabase:
           name: chattingapp-db
