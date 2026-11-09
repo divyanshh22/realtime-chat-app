@@ -233,6 +233,25 @@ Four production bugs were reported and fixed with **root-cause-only** changes (n
 
 **Files:** `chat/views.py`, `chat/templates/chat/conversation.html`, `tests/test_views.py`.
 
+### Bug 5 — Online status not synchronized after logout (commits `17ebc8d` + `08dc9a1`)
+
+**Symptom:** Div clicks Logout, yet Riya still sees Div as ONLINE — even after reloading or reopening the DM.
+
+**Root cause:** `logout_view` only called `logout(request)`. It never touched presence state, so the row kept `is_online=True` with `connection_count>0` after logout. Going offline depended entirely on the browser closing its WebSockets, which proxies delay by 10 s+ and background tabs skip entirely — and no OFFLINE was ever broadcast, so viewers and page reloads kept showing the logged-out account as online (confirmed by a failing repro test: after logout `is_online=True, connection_count=1, last_seen=None`).
+
+**Fix (backend, no UI hiding):**
+
+- `presence.force_offline()` — authoritative cleanup: zeroes `connection_count` for **every** tab/device, flips `is_online` off, stamps `last_seen` at the logout moment.
+- `presence.force_offline_and_announce()` — broadcasts `presence_update: offline` (with `last_seen`) on the global presence group immediately, so open DMs update without a reload.
+- `presence.close_user_sockets()` — fans a `force_disconnect` out through a new per-user channel-layer group (`user_presence_<id>`) that **both** consumers join on connect, force-closing all of the account's sockets (multi-tab/device safe).
+- `logout_view` runs that cleanup **before** `logout(request)`, then clears stale Redis `online_users`/`last_seen` entries (best-effort; a dead Redis cannot block logout).
+- `commit_offline()` now also requires `is_online=True`, so a socket that closes *after* the logout is a no-op — it cannot re-stamp `last_seen` or re-announce a transition that was already broadcast.
+- Old sessions cannot reconnect (session is flushed → anonymous → WS rejected), so stale sockets can never restore the outdated ONLINE state. Unexpected disconnects still go through the existing grace-period/heartbeat path; intentional logout bypasses it. Per-session logout policy unchanged (Django default).
+
+**Files:** `chat/presence.py`, `chat/presence_consumer.py`, `chat/consumers.py`, `login/views.py`.
+
+**Scenario coverage:** Div logs out → offline ✓; Riya's open DM updates instantly (WS `presence_update`) ✓; reload/re-opened DM stays offline (server-rendered header + status API + `get_status`) ✓; re-login → online again ✓; two tabs, logout closes both, viewer socket untouched ✓; logout from one session follows existing per-session policy ✓; stale Redis corrected ✓; stale socket/session cannot restore ONLINE ✓.
+
 ### Regression tests added
 
 | File | Tests | Coverage |
@@ -240,6 +259,7 @@ Four production bugs were reported and fixed with **root-cause-only** changes (n
 | `tests/test_presence.py` | 17 | Connection counting, grace period, heartbeat, sweep, `effective_presence`, WS regressions |
 | `tests/test_receipts.py` | 12 | Deliver-on-connect, live broadcast, conversation GET, read ack, API payloads, 3-state ticks |
 | `tests/test_media.py` | 13 | Storage-outage graceful handling on all 3 endpoints, avatar preservation, Cloudinary env wiring |
+| `tests/test_logout_presence.py` | 13 | Logout force-offline + broadcast + socket close, multi-tab, re-login, stale Redis/socket/session, per-session policy |
 
 ### Live verification results (Render, `https://chattingapp-r4kq.onrender.com/`)
 
@@ -258,13 +278,16 @@ Four production bugs were reported and fixed with **root-cause-only** changes (n
 
 - `3764ac5` — Fix four production bugs: presence, delivery ticks, and image upload crashes (app code + 2 migrations)
 - `679a099` — Add regression tests for presence, delivery receipts, and storage failures (3 new test files + schema updates + `settings_test.py`)
+- `f2912a3` — Update testing report with production bug-fix results (bugs 1–4)
+- `17ebc8d` — Fix logout presence bug: force offline, broadcast, close user sockets
+- `08dc9a1` — Add regression tests for logout presence synchronization
 
-Both commits: CI green, Render auto-deployed, working tree clean.
+All commits: CI green, Render auto-deployed, working tree clean (except the untouched untracked user files).
 
 ## 10. Next steps (final state)
 
-1. **Pushed ✓ / CI green ✓ / Deployed ✓** — everything is on `origin/main` of `divyanshh22/real.time.chatting-app` (commits `3764ac5` + `679a099`). CI run `679a099` = `success`; Render auto-deployed to `https://chattingapp-r4kq.onrender.com/` (root 200, `/chat/` 200, new deploy markers live).
-2. **Local suite: 251 passed, coverage 92.73 % (≥ 88 gate), `ruff check --select E4,E7,E9,F` clean, `makemigrations --check` → "No changes detected".**
+1. **Pushed ✓ / CI green ✓ / Deployed ✓** — everything is on `origin/main` (the repository moved to `divyanshh22/realtime-chat-app`; the old URL redirects). CI run for `08dc9a1` = the logout-fix run; Render auto-deploys on push to `https://chattingapp-r4kq.onrender.com/`.
+2. **Local suite: 264 passed (251 existing + 13 new logout tests), coverage 91.94 % (≥ 88 gate), `ruff check --select E4,E7,E9,F` clean, `makemigrations --check` → "No changes detected".**
 3. **Live verification:** 10/10 HTTP checks + 11/11 WebSocket presence checks pass on Render.
 4. **Remaining:** Image **success** path (profile/DM upload reaching Cloudinary) is blocked until correct `CLOUDINARY_*` env values are set in Render (current values are rejected by Cloudinary). Graceful failure path is fully verified.
 5. **Optional:** coverage follow-up — exercise the Redis-presence fallback in `chat/views.py` (needs a Redis-enabled settings variant) to push `chat/views.py` past 90 %.

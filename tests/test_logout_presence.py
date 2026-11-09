@@ -172,6 +172,7 @@ def test_logout_clears_stale_redis_presence(db, user, other_user, monkeypatch):
 
 def test_logout_survives_redis_failure(db, user, monkeypatch):
     """Redis cleanup is best-effort: a dead Redis must not block logout."""
+
     def _explode():
         raise RuntimeError("redis down")
 
