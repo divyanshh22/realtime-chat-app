@@ -418,12 +418,23 @@ main{padding:1.25rem 1rem;}
   var socket = null;
   var attempts = 0;
   var heartbeatTimer = null;
+  var reconnectTimer = null;
+  var unloading = false;
 
   function connect() {
+    if (unloading) return;
+    // Never open a second socket while one is live (stray retry timer
+    // racing the 'online' event, pageshow, ...) — duplicate sockets would
+    // double-count presence and duplicate every event listener dispatch.
+    if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
+      return;
+    }
+
     socket = new WebSocket(protocol + '//' + window.location.host + '/ws/presence/');
 
     socket.onopen = function () {
       attempts = 0;
+      clearTimeout(reconnectTimer);
       window.appPresenceSocket = socket;
       window.dispatchEvent(new Event('presence-open'));
       // Heartbeat: proves this tab is alive so the server can tell a real
@@ -447,14 +458,47 @@ main{padding:1.25rem 1rem;}
       if (window.appPresenceSocket === socket) {
         window.appPresenceSocket = null;
       }
-      if (attempts < 5) { // reconnect after drops (network blips, sleeps)
-        attempts += 1;
-        setTimeout(connect, Math.min(1000 * attempts, 5000));
-      }
+      scheduleReconnect();
     };
 
     socket.onerror = function () {}; // onclose drives the retry
   }
+
+  // Reconnect FOREVER with capped exponential backoff (1s, 2s, 4s, ... 30s).
+  // The old 5-attempt cap gave up silently after ~5s of outage and the tab
+  // stayed deaf until a manual refresh: no presence, no delivery receipts —
+  // the server flushes pending deliveries the moment this socket reconnects.
+  function scheduleReconnect() {
+    if (unloading) return;
+    clearTimeout(reconnectTimer);
+    attempts += 1;
+    reconnectTimer = setTimeout(connect, Math.min(1000 * Math.pow(2, attempts - 1), 30000));
+  }
+
+  // Network is back: retry immediately instead of waiting out the backoff.
+  window.addEventListener('online', function () {
+    if (unloading) return;
+    clearTimeout(reconnectTimer);
+    attempts = 0;
+    connect();
+  });
+
+  // Page is going away (navigation / logout): stop retrying. Timers die
+  // with the document anyway — this just closes the window cleanly.
+  window.addEventListener('pagehide', function () {
+    unloading = true;
+    clearTimeout(reconnectTimer);
+  });
+
+  // Restored from the back/forward cache: the socket was dropped while
+  // frozen — reopen it (fresh page loads run connect() below instead).
+  window.addEventListener('pageshow', function (event) {
+    unloading = false;
+    if (event.persisted) {
+      attempts = 0;
+      connect();
+    }
+  });
 
   connect();
 })();

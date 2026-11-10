@@ -1,12 +1,11 @@
 import json
-import os
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 
-from . import presence
+from . import delivery, presence
 from .models import Message
 from login.models import CustomUser
 
@@ -33,28 +32,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
             pass
 
         # Per-user group so logout can force-close every socket of this
-        # account (this DM + the presence socket) in one shot.
+        # account (this DM + the presence socket) in one shot — and so the
+        # server can push delivery hints (deliver_incoming) to every live
+        # session of this account, whichever DM or page they are on.
         try:
             await self.channel_layer.group_add(
                 presence.user_group(self.me.id), self.channel_name
             )
         except Exception:
             pass
-        if os.environ.get("CHAT_DIAG") == "1":  # TEMP diagnostic (removed)
-            try:
-                grp = presence.user_group(self.me.id)
-                groups = getattr(self.channel_layer, "groups", None)
-                in_group = None
-                if isinstance(groups, dict):
-                    in_group = self.channel_name in groups.get(grp, {})
-                await presence.announce(
-                    self.me.id,
-                    f"DIAG-B dm pid={os.getpid()} layer={id(self.channel_layer)} "
-                    f"group={grp} in_group={in_group} ch={self.channel_name}",
-                    "online",
-                )
-            except Exception:
-                pass
 
         # Presence is counted (not blindly set): the user may have other
         # tabs/devices connected — see chat/presence.py.
@@ -136,6 +122,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if delivered_ids:
                 await self._broadcast_delivered(delivered_ids)
 
+    async def deliver_incoming(self, event):
+        """A delivery hint pushed to this account's PERSONAL group.
+
+        Whichever of this account's live sockets (presence page, open DMs,
+        other tabs) receives it flags the message delivered — but only the
+        socket that wins the conditional UPDATE announces the receipt to the
+        conversation, so N open sessions still produce exactly one
+        ``message_delivered`` frame for the sender.
+        """
+        message_id = event.get('message_id')
+        room_group = event.get('room_group')
+        if not isinstance(message_id, int) or isinstance(message_id, bool):
+            return
+        if not isinstance(room_group, str) or not room_group:
+            return
+        delivered_ids = await database_sync_to_async(delivery.mark_delivered)(self.me.id, message_id)
+        if not delivered_ids:
+            return
+        try:
+            await self.channel_layer.group_send(
+                room_group,
+                {'type': 'message_delivered', 'message_ids': delivered_ids},
+            )
+        except Exception:
+            pass
+
     async def message_delivered(self, event):
         await self.send(text_data=json.dumps({
             'type': 'message_delivered',
@@ -165,7 +177,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @staticmethod
     def _get_room_group_name(user_id_1, user_id_2):
-        return f"chat_{min(user_id_1, user_id_2)}_{max(user_id_1, user_id_2)}"
+        """Canonical DM group name — delegates to chat.delivery (single source)."""
+        return delivery.room_group_name(user_id_1, user_id_2)
 
     async def _announce_status(self, status, last_seen=None):
         now = timezone.now().isoformat()
@@ -231,6 +244,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     },
                 }
             )
+            # Delivery hint to the RECIPIENT's personal group: their presence
+            # socket or any open DM (on any page/tab) receives it and flags
+            # the message delivered right away. No live socket of theirs =>
+            # empty group => the event vanishes and the tick stays single
+            # until they reconnect (presence flush delivers the backlog).
+            await self.channel_layer.group_send(
+                presence.user_group(self.other_user.id),
+                {
+                    'type': 'deliver_incoming',
+                    'message_id': message.id,
+                    'room_group': self.room_group_name,
+                },
+            )
         except Exception:
             pass
 
@@ -253,15 +279,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         return ids
 
     def _mark_delivered(self, message_id):
-        """Atomically deliver one incoming message; only the connection that
-        actually flips the flag broadcasts, so multi-tab receivers don't
-        duplicate the announcement."""
-        if not isinstance(message_id, int) or isinstance(message_id, bool):
-            return []
-        updated = Message.objects.filter(
-            id=message_id, receiver=self.me, is_delivered=False,
-        ).update(is_delivered=True)
-        return [message_id] if updated else []
+        """Atomically deliver one incoming message (see chat.delivery); only
+        the connection that actually flips the flag gets the id back, so
+        multi-tab receivers don't duplicate the announcement."""
+        return delivery.mark_delivered(self.me.id, message_id)
 
     async def _mark_messages_read(self, message_ids):
         if not isinstance(message_ids, (list, tuple)):

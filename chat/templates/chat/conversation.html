@@ -158,7 +158,8 @@
   
   let ws = null;
   let reconnectAttempts = 0;
-  const maxReconnectAttempts = 5;
+  let reconnectTimer = null;
+  let pageUnloading = false;
   let typingTimeout = null;
   let isTyping = false;
   
@@ -202,6 +203,14 @@
   
   // Connect to WebSocket
   function connect() {
+    if (pageUnloading) return;
+    // Never open a second socket while one is live (stray retry timer
+    // racing the 'online' event, pageshow, ...) — duplicate sockets would
+    // duplicate message frames and read/delivery handlers.
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+      return;
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws/chat/${otherUsername}/`;
     
@@ -210,9 +219,12 @@
     ws.onopen = function() {
       console.log('WebSocket connected');
       reconnectAttempts = 0;
+      clearTimeout(reconnectTimer);
       
       // Request initial messages (optional - they're already loaded)
       // Mark existing messages as read
+      // (the conversation IS open, so re-syncing read state on every
+      // reconnect is correct — the server re-flushes deliveries too)
       markMessagesRead();
     };
     
@@ -231,12 +243,42 @@
     };
   }
   
+  // Reconnect FOREVER with capped exponential backoff (1s, 2s, 4s, ... 30s).
+  // The old 5-attempt cap gave up silently after ~15s of outage, leaving the
+  // DM deaf (no messages, no presence, no tick updates) until a manual
+  // refresh — while delivery/read receipts are pushed over this socket.
   function attemptReconnect() {
-    if (reconnectAttempts < maxReconnectAttempts) {
-      reconnectAttempts++;
-      setTimeout(connect, 1000 * reconnectAttempts);
-    }
+    if (pageUnloading) return;
+    clearTimeout(reconnectTimer);
+    reconnectAttempts += 1;
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000);
+    reconnectTimer = setTimeout(connect, delay);
   }
+
+  // Network is back: retry immediately instead of waiting out the backoff
+  // (the server flushes pending deliveries the moment we reconnect).
+  window.addEventListener('online', function() {
+    if (pageUnloading) return;
+    clearTimeout(reconnectTimer);
+    reconnectAttempts = 0;
+    connect();
+  });
+
+  // Page is going away (navigation / logout): stop retrying.
+  window.addEventListener('pagehide', function() {
+    pageUnloading = true;
+    clearTimeout(reconnectTimer);
+  });
+
+  // Restored from the back/forward cache: the socket was dropped while
+  // frozen — reopen it (fresh loads call connect() below instead).
+  window.addEventListener('pageshow', function(event) {
+    pageUnloading = false;
+    if (event.persisted) {
+      reconnectAttempts = 0;
+      connect();
+    }
+  });
   
   function handleWebSocketMessage(data) {
     switch(data.type) {
@@ -558,8 +600,11 @@
   // Initialize
   connect();
   
-  // Clean up on page unload
+  // Clean up on page unload (flag first so onclose does not schedule a
+  // reconnect for a document that is going away)
   window.addEventListener('beforeunload', function() {
+    pageUnloading = true;
+    clearTimeout(reconnectTimer);
     if (ws) {
       ws.close();
     }

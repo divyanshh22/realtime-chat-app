@@ -14,7 +14,7 @@ from django.views.decorators.http import require_http_methods
 from login.models import CustomUser, ProfilePic
 from login.utils import is_valid_image_upload
 
-from . import presence
+from . import delivery, presence
 from .models import Message
 
 logger = logging.getLogger(__name__)
@@ -76,14 +76,20 @@ def _build_home_inbox_context(request):
             pass
 
     for user in chat_users:
-        user.is_online = online_users.get(str(user.id)) == 'online' or user.is_online
-        user.last_seen_str = last_seen.get(str(user.id)) or user.last_seen
+        # Redis (if configured) is the freshest signal and wins, exactly as
+        # before; the DB flag is only trusted through effective_presence,
+        # which heals stale ghosts (crashed sockets / legacy rows) instead of
+        # showing them as online forever.
+        db_online, db_last_seen = presence.effective_presence(user)
+        user.is_online = online_users.get(str(user.id)) == 'online' or db_online
+        user.last_seen_str = last_seen.get(str(user.id)) or db_last_seen or user.last_seen
 
     return {'chat_users': chat_users}
 
 
 def get_room_group_name(user_id_1, user_id_2):
-    return f"chat_{min(user_id_1, user_id_2)}_{max(user_id_1, user_id_2)}"
+    """Canonical DM group name — delegates to chat.delivery (single source)."""
+    return delivery.room_group_name(user_id_1, user_id_2)
 
 
 def get_user_presence(user_id):
@@ -212,9 +218,10 @@ def conversation_view(request, username):
                 return redirect('chat:conversation-view', username=username)
 
             # Broadcast over WebSocket so the other user gets it in real time
+            room_group = get_room_group_name(request.user.id, other_user.id)
             try:
                 channel_layer = get_channel_layer()
-                async_to_sync(channel_layer.group_send)(get_room_group_name(request.user.id, other_user.id), {
+                async_to_sync(channel_layer.group_send)(room_group, {
                     'type': 'chat_message',
                     'message': {
                         'id': message.id,
@@ -227,6 +234,19 @@ def conversation_view(request, username):
                         'is_delivered': message.is_delivered,
                     },
                 })
+                # ...and push a delivery hint to the RECIPIENT's personal
+                # group: whichever of their live sockets (presence page,
+                # open DMs, other tabs) receives it flags the message
+                # delivered and announces the receipt to this room. With no
+                # socket open the group is empty and nothing is marked.
+                async_to_sync(channel_layer.group_send)(
+                    presence.user_group(other_user.id),
+                    {
+                        'type': 'deliver_incoming',
+                        'message_id': message.id,
+                        'room_group': room_group,
+                    },
+                )
             except Exception:
                 pass
         return redirect('chat:conversation-view', username=username)
@@ -326,6 +346,18 @@ def send_message_api(request, username):
             'type': 'chat_message',
             'message': payload['message'],
         })
+        # Delivery hint to the recipient's personal group (presence socket +
+        # every open chat socket). If none of their sessions is live the
+        # group doesn't exist and the message honestly stays single-ticked
+        # until they reconnect (the presence flush then delivers it).
+        async_to_sync(channel_layer.group_send)(
+            presence.user_group(other_user.id),
+            {
+                'type': 'deliver_incoming',
+                'message_id': message.id,
+                'room_group': room_group_name,
+            },
+        )
     except Exception:
         pass
 
