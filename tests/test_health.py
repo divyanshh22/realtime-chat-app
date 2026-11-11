@@ -25,6 +25,7 @@ ALL_TEMPLATES = [
     "login/register.html",
     "login/profile.html",
     "login/user_profile.html",
+    "login/about.html",
     "chat/home.html",
     "chat/conversation.html",
     "chat/search.html",
@@ -146,7 +147,7 @@ def test_all_pages_render_once(auth_client, anon_client, user, other_user):
     MessageFactory(sender=other_user, receiver=user, text="render probe")
 
     # public pages (anonymous client — login/register redirect authed users)
-    public_pages = [("/", 200), ("/register/", 200)]
+    public_pages = [("/", 200), ("/register/", 200), ("/about/", 200)]
     for path, expected in public_pages:
         resp = anon_client.get(path)
         assert resp.status_code == expected, f"{path} returned {resp.status_code}, expected {expected}"
@@ -176,3 +177,21 @@ def test_anonymous_login_page_renders_completely(anon_client):
     html = resp.content.decode()
     assert "<form" in html
     assert "password" in html
+
+
+def test_about_page_renders_for_everyone_with_credit(anon_client):
+    """The About page is public and carries the exact developer credit."""
+    resp = anon_client.get("/about/")
+    assert resp.status_code == 200
+    assert "login/about.html" in [t.name for t in resp.templates]
+
+    html = resp.content.decode()
+    assert "About WebChat" in html
+    assert "What WebChat Offers" in html
+    assert "Technology Behind WebChat" in html
+    assert "Built with ❤️ by Divyansh" in html
+    # technologies that are genuinely part of this project
+    assert "Django Channels" in html
+    assert "Redis" in html
+    # Django REST Framework is NOT used — never claim it
+    assert "Django REST Framework" not in html

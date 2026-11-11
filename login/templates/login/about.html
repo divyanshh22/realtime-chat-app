@@ -1,0 +1,90 @@
+{% extends 'login/base.html' %}
+
+{% block title %}About · WebChat{% endblock %}
+{% block body_class %}about-view{% endblock %}
+
+{% block content %}
+
+<!-- About WebChat -->
+<section class="card about-hero">
+  <div class="logo-dot"></div>
+  <p class="about-kicker">ABOUT</p>
+  <h1>About WebChat</h1>
+  <p class="about-lede">
+    WebChat is a real-time messaging application designed to make communication
+    simple and convenient. Open it in your browser, find the person you want to
+    reach, and talk — messages, presence and read receipts arrive instantly,
+    with no refreshes and no clutter.
+  </p>
+</section>
+
+<!-- What WebChat Offers -->
+<section class="card about-section" style="margin-top:20px;">
+  <p class="about-kicker">WHAT IT DOES</p>
+  <h2>What WebChat Offers</h2>
+  <div class="offer-grid">
+    <div class="offer-item">
+      <h3>Real-time text messaging</h3>
+      <p>Messages are delivered instantly over WebSockets — no refreshing, no waiting for the other person to reload.</p>
+    </div>
+    <div class="offer-item">
+      <h3>User authentication</h3>
+      <p>Secure signup and login with session-based accounts, so only you can access your conversations.</p>
+    </div>
+    <div class="offer-item">
+      <h3>Online / offline presence</h3>
+      <p>See who is online right now and when last-seen people were around, updated live across every page.</p>
+    </div>
+    <div class="offer-item">
+      <h3>Typing indicators</h3>
+      <p>Know when the other person is typing a reply before it even arrives.</p>
+    </div>
+    <div class="offer-item">
+      <h3>Message delivery status</h3>
+      <p>A single tick means sent, a double tick means the message reached the recipient's device.</p>
+    </div>
+    <div class="offer-item">
+      <h3>Read receipts</h3>
+      <p>Delivered ticks turn green the moment your message has actually been read.</p>
+    </div>
+    <div class="offer-item">
+      <h3>User search</h3>
+      <p>Find anyone by username and jump straight into a conversation with them.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Technology Behind WebChat -->
+<section class="card about-section">
+  <p class="about-kicker">UNDER THE HOOD</p>
+  <h2>Technology Behind WebChat</h2>
+  <div class="tech-grid">
+    <span class="tech-chip">Python</span>
+    <span class="tech-chip">Django</span>
+    <span class="tech-chip">Django Channels</span>
+    <span class="tech-chip">WebSockets</span>
+    <span class="tech-chip">Redis</span>
+    <span class="tech-chip">PostgreSQL</span>
+    <span class="tech-chip">HTML</span>
+    <span class="tech-chip">CSS</span>
+    <span class="tech-chip">JavaScript</span>
+    <span class="tech-chip">Cloudinary</span>
+    <span class="tech-chip">Nginx</span>
+    <span class="tech-chip">Docker</span>
+  </div>
+  <p class="about-note">
+    Django Channels and WebSockets carry the live messages, presence and typing
+    events, with Redis as the channel layer. The interface is plain HTML, CSS
+    and JavaScript — no front-end framework required.
+  </p>
+</section>
+
+<!-- Developer credit -->
+<div class="about-credit">
+  <div class="credit-card">
+    <p class="credit-line">Built with ❤️ by Divyansh</p>
+    <p class="credit-sub">Designed and developed with passion.</p>
+  </div>
+</div>
+
+{% endblock %}

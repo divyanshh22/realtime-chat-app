@@ -1,70 +1,89 @@
 {% extends 'login/base.html' %}
 
-{% block title %}Register{% endblock %}
+{% block title %}Create Account · WebChat{% endblock %}
+{% block body_class %}auth-view{% endblock %}
 
 {% block content %}
-<div class="card" style="margin:0 auto;">
+<div class="auth-layout">
 
-    <div class="card-header">
-        <h2>Create Account 🚀</h2>
+    <aside class="auth-hero">
+        <span class="auth-brand"><span class="logo-dot"></span>WebChat</span>
+        <div>
+            <h1>Start a conversation.</h1>
+            <p class="hero-lede">Create your account and reach the people you talk to most — in real time.</p>
+        </div>
+        <ul class="auth-points">
+            <li>Real-time messaging over WebSockets</li>
+            <li>Online presence and typing indicators</li>
+            <li>Delivery ticks and read receipts</li>
+        </ul>
+        <p class="auth-hero-foot">Simple, fast conversations — right in your browser.</p>
+    </aside>
+
+    <div class="card auth-card">
+
+        <div class="card-header">
+            <h2>Create account</h2>
+        </div>
+        <p class="sub">Fill in your details to get started</p>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="POST">
+            {% csrf_token %}
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="first_name">First Name</label>
+                    <input type="text" id="first_name" name="first_name" placeholder="John" required>
+                </div>
+                <div class="form-group">
+                    <label for="last_name">Last Name</label>
+                    <input type="text" id="last_name" name="last_name" placeholder="Doe" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Choose a username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="you@example.com" required>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="password1">Password</label>
+                    <div class="input-wrap">
+                        <input type="password" id="password1" name="password1" placeholder="Min 8 characters" required>
+                        <button type="button" class="toggle-btn" aria-label="Show password" onclick="togglePassword('password1', this)">Show</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="password2">Confirm Password</label>
+                    <div class="input-wrap">
+                        <input type="password" id="password2" name="password2" placeholder="Repeat password" required>
+                        <button type="button" class="toggle-btn" aria-label="Show password" onclick="togglePassword('password2', this)">Show</button>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit">Register</button>
+
+        </form>
+
+        <div class="divider"></div>
+        <p class="auth-alt">Already have an account? <a href="{% url 'login-view' %}">Login here</a></p>
+
     </div>
-    <p class="sub">Join MyApp and start chatting</p>
-
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
-                <span>{{ message }}</span>
-            </div>
-        {% endfor %}
-    {% endif %}
-
-    <form method="POST">
-        {% csrf_token %}
-
-        <div class="grid-2">
-            <div class="form-group">
-                <label for="first_name">First Name</label>
-                <input type="text" id="first_name" name="first_name" placeholder="John" required>
-            </div>
-            <div class="form-group">
-                <label for="last_name">Last Name</label>
-                <input type="text" id="last_name" name="last_name" placeholder="Doe" required>
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label for="username">Username</label>
-            <input type="text" id="username" name="username" placeholder="Choose a username" required>
-        </div>
-
-        <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" placeholder="you@example.com" required>
-        </div>
-
-        <div class="grid-2">
-            <div class="form-group">
-                <label for="password1">Password</label>
-                <div class="input-wrap">
-                    <input type="password" id="password1" name="password1" placeholder="Min 8 characters" required>
-                    <button type="button" class="toggle-btn" onclick="togglePassword('password1', this)">👁</button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="password2">Confirm Password</label>
-                <div class="input-wrap">
-                    <input type="password" id="password2" name="password2" placeholder="Repeat password" required>
-                    <button type="button" class="toggle-btn" onclick="togglePassword('password2', this)">👁</button>
-                </div>
-            </div>
-        </div>
-
-        <button type="submit">Register</button>
-
-    </form>
-
-    <div class="divider"></div>
-    <p class="auth-alt">Already have an account? <a href="{% url 'login-view' %}">Login here</a></p>
 
 </div>
 
@@ -73,10 +92,12 @@ function togglePassword(id, btn) {
     const input = document.getElementById(id);
     if (input.type === 'password') {
         input.type = 'text';
-        btn.textContent = '🙈';
+        btn.textContent = 'Hide';
+        btn.setAttribute('aria-label', 'Hide password');
     } else {
         input.type = 'password';
-        btn.textContent = '👁';
+        btn.textContent = 'Show';
+        btn.setAttribute('aria-label', 'Show password');
     }
 }
 </script>

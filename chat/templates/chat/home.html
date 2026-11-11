@@ -1,20 +1,20 @@
 {% extends 'login/base.html' %}
-{% block title %}Chats{% endblock %}
+{% block title %}Chats · WebChat{% endblock %}
 {% block content %}
-<div class="card" style="max-width:520px;width:100%;margin:0 auto;padding:1.5rem;">
+<div class="card inbox-card">
 
-  <!-- Search Bar -->
-  <form method="GET" action="{% url 'chat:search-view' %}" style="margin-bottom:18px;">
-    <div style="display:flex;gap:8px;">
-      <input type="text" name="q" placeholder="Search by username..." style="margin-top:0;" autocomplete="off">
-      <button type="submit" style="width:auto;padding:12px 16px;">🔍</button>
-    </div>
-  </form>
-
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <h2 style="font-size:0.95rem;color:var(--muted);letter-spacing:0.06em;">YOUR CHATS</h2>
+  <div class="inbox-top">
+    <h2 class="section-title">YOUR CHATS</h2>
     <span class="badge-plain" id="chat-count"></span>
   </div>
+
+  <!-- Search Bar -->
+  <form class="search-row" method="GET" action="{% url 'chat:search-view' %}">
+    <input type="text" name="q" placeholder="Search by username..." autocomplete="off">
+    <button type="submit" class="icon-btn" aria-label="Search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+    </button>
+  </form>
 
   <div id="chat-list">
   {% if chat_users %}
@@ -23,39 +23,39 @@
        data-user-id="{{ user.id }}"
        class="chat-user-row">
 
-      <div style="position:relative;">
+      <span class="row-avatar">
         {% if user.profilepic.profile_pic %}
-          <img src="{{ user.profilepic.profile_pic.url }}" class="avatar">
+          <img src="{{ user.profilepic.profile_pic.url }}" class="avatar" alt="">
         {% else %}
           <div class="avatar-placeholder">{{ user.username|first|upper }}</div>
         {% endif %}
         <span class="status-dot chat-presence-dot" id="dot-{{ user.id }}"
               style="{% if user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"
               title="{% if user.is_online %}Online{% else %}Offline{% endif %}"></span>
-      </div>
+      </span>
 
-      <div style="flex:1;min-width:0;">
-        <div class="chat-user-name" style="color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ user.username }}</div>
-        <div class="chat-user-preview muted" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+      <span class="row-main">
+        <span class="chat-user-name">{{ user.username }}</span>
+        <span class="chat-user-preview">
           {% if user.last_message_preview %}{{ user.last_message_preview }}{% else %}Start a conversation{% endif %}
-        </div>
-      </div>
+        </span>
+      </span>
 
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+      <span class="row-meta">
         {% if user.last_message_time %}
-          <span class="muted" style="font-size:11px;">{{ user.last_message_time|date:"g:i A" }}</span>
+          <span class="chat-user-time">{{ user.last_message_time|date:"g:i A" }}</span>
         {% endif %}
         <span class="chat-unread-badge" style="{% if not user.unread_count %}display:none;{% endif %}">
           {{ user.unread_count }}
         </span>
-      </div>
+      </span>
     </a>
     {% endfor %}
   {% else %}
-    <div class="center" style="padding:2.5rem 1rem;">
-      <div style="font-size:2rem;margin-bottom:10px;">💬</div>
-      <div class="muted" style="font-size:14px;">No chats yet — search a user to start!</div>
-      <a href="{% url 'chat:search-view' %}" class="btn btn-sm" style="margin-top:16px;display:inline-block;width:auto;">Find people</a>
+    <div class="empty-state">
+      <span class="empty-title">No chats yet</span>
+      <span class="empty-text">Search a user to start a conversation.</span>
+      <a href="{% url 'chat:search-view' %}" class="btn btn-sm" style="margin-top:8px;">Find people</a>
     </div>
   {% endif %}
   </div>
@@ -64,6 +64,7 @@
 <script>
 (function() {
     const inboxApiUrl = '{% url "chat:home-inbox-api" %}';
+    const searchUrl = '{% url "chat:search-view" %}';
     const userIds = [{% for user in chat_users %}{{ user.id }}{% if not forloop.last %},{% endif %}{% endfor %}];
 
     // The presence socket lives in base.html (one per tab, every page).
@@ -119,6 +120,7 @@
         return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     }
 
+    // Markup mirrors the server-rendered rows above — keep the two in sync.
     function renderInbox(users) {
         const container = document.getElementById('chat-list');
         if (!container) {
@@ -131,7 +133,12 @@
         }
 
         if (!users.length) {
-            container.innerHTML = '<div class="center" style="padding:2.5rem 1rem;"><div style="font-size:2rem;margin-bottom:10px;">💬</div><div class="muted" style="font-size:14px;">No chats yet — search a user to start!</div></div>';
+            container.innerHTML =
+                '<div class="empty-state">' +
+                  '<span class="empty-title">No chats yet</span>' +
+                  '<span class="empty-text">Search a user to start a conversation.</span>' +
+                  `<a href="${searchUrl}" class="btn btn-sm" style="margin-top:8px;">Find people</a>` +
+                '</div>';
             return;
         }
 
@@ -140,7 +147,7 @@
             const preview = escapeHtml(user.preview || 'Start a conversation');
             const time = formatTime(user.last_message_time);
             const profileMarkup = user.profile_pic_url
-                ? `<img src="${user.profile_pic_url}" class="avatar">`
+                ? `<img src="${user.profile_pic_url}" class="avatar" alt="">`
                 : `<div class="avatar-placeholder">${escapeHtml(toInitials(user.username))}</div>`;
 
             const unreadMarkup = user.unread_count > 0
@@ -149,18 +156,18 @@
 
             return `
                 <a href="${user.conversation_url}" data-user-id="${user.id}" class="chat-user-row">
-                    <div style="position:relative;">
+                    <span class="row-avatar">
                         ${profileMarkup}
                         <span class="status-dot chat-presence-dot" id="dot-${user.id}" style="background:${user.is_online ? 'var(--online)' : 'var(--offline)'};" title="${user.is_online ? 'Online' : 'Offline'}"></span>
-                    </div>
-                    <div style="flex:1;min-width:0;">
-                        <div class="chat-user-name" style="color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
-                        <div class="chat-user-preview muted" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${preview}</div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
-                        ${time ? `<span class="muted" style="font-size:11px;">${time}</span>` : ''}
+                    </span>
+                    <span class="row-main">
+                        <span class="chat-user-name">${name}</span>
+                        <span class="chat-user-preview">${preview}</span>
+                    </span>
+                    <span class="row-meta">
+                        ${time ? `<span class="chat-user-time">${time}</span>` : ''}
                         ${unreadMarkup}
-                    </div>
+                    </span>
                 </a>
             `;
         }).join('');

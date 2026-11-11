@@ -1,5 +1,5 @@
 {% extends 'login/base.html' %}
-{% block title %}My Profile{% endblock %}
+{% block title %}My Profile · WebChat{% endblock %}
 
 {% block content %}
 <div class="card" style="max-width:480px;margin:0 auto;">
@@ -13,7 +13,8 @@
   <div class="center" style="margin-bottom:20px;">
     {% if profile.profile_pic %}
       <img src="{{ profile.profile_pic.url }}"
-           class="avatar" style="width:96px;height:96px;border:3px solid var(--accent);">
+           class="avatar" alt=""
+           style="width:96px;height:96px;border:2px solid rgba(139,92,246,.6);">
     {% else %}
       <div class="avatar-placeholder" style="width:96px;height:96px;font-size:2.2rem;margin:0 auto;">
         {{ request.user.username|first|upper }}
@@ -54,8 +55,7 @@
 
     <div class="form-group">
       <label>Username</label>
-      <input type="text" value="{{ request.user.username }}" disabled
-             style="opacity:0.5;cursor:not-allowed;">
+      <input type="text" value="{{ request.user.username }}" disabled>
     </div>
 
     <button type="submit">Save Changes</button>

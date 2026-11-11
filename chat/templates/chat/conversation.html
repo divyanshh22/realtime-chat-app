@@ -1,51 +1,45 @@
 {% extends 'login/base.html' %}
-{% block title %}Chat with {{ other_user.username }}{% endblock %}
+{% block title %}Chat with {{ other_user.username }} · WebChat{% endblock %}
+{% block body_class %}chat-view{% endblock %}
 
 {% block content %}
 <!-- Flash notices (errors like "storage unavailable", validation, ...) -->
-{% for notice in messages %}
-  <div class="alert {% if notice.tags == 'error' %}alert-error{% elif notice.tags == 'success' %}alert-success{% else %}alert-info{% endif %}"
-       style="margin-bottom:12px;padding:10px 14px;border-radius:10px;font-size:13.5px;
-              background:{% if notice.tags == 'error' %}rgba(249,107,107,0.12);color:var(--danger);border:1px solid rgba(249,107,107,0.35);{% else %}rgba(74,222,128,0.12);color:var(--success);border:1px solid rgba(74,222,128,0.35);{% endif %}">
-    {{ notice }}
-  </div>
-{% endfor %}
+{% if messages %}
+<div class="chat-notices">
+  {% for notice in messages %}
+    <div class="alert {% if notice.tags == 'error' %}alert-error{% elif notice.tags == 'success' %}alert-success{% else %}alert-info{% endif %}">
+      {{ notice }}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
 
-<div class="card" style="max-width:600px;padding:0;overflow:hidden;box-shadow:var(--shadow);">
+<div class="card chat-card">
 
   <!-- Header -->
-  <div style="padding:14px 16px;border-bottom:1px solid var(--border);
-              display:flex;align-items:center;gap:12px;background:var(--surface);">
-    
-    <a href="{% url 'chat:home-view' %}" title="Back to chats"
-       style="color:var(--muted);text-decoration:none;font-size:18px;width:36px;height:36px;
-              border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;
-              background:var(--surface-2);border:1px solid var(--border);transition:all .15s ease;">←</a>
+  <div class="chat-head">
+
+    <a href="{% url 'chat:home-view' %}" class="chat-back" title="Back to chats" aria-label="Back to chats">←</a>
 
     <!-- Profile Pic -->
-    <a href="{% url 'user_profile' other_user.username %}" style="flex-shrink:0;">
+    <a href="{% url 'user_profile' other_user.username %}" class="chat-head-avatar" aria-label="View profile">
     {% if other_user.profilepic.profile_pic %}
-      <img src="{{ other_user.profilepic.profile_pic.url }}"
-           style="width:42px;height:42px;border-radius:50%;object-fit:cover;cursor:pointer;border:2px solid var(--accent);">
+      <img src="{{ other_user.profilepic.profile_pic.url }}" alt="">
     {% else %}
-      <div style="width:42px;height:42px;border-radius:50%;
-                  background:linear-gradient(135deg,var(--accent),#5a4bd4);display:flex;
-                  align-items:center;justify-content:center;
-                  font-weight:700;color:white;cursor:pointer;">
+      <div class="avatar-placeholder">
         {{ other_user.username|first|upper }}
       </div>
     {% endif %}
     </a>
 
-    <div style="flex:1;min-width:0;">
-      <div style="font-weight:600;display:flex;align-items:center;gap:8px;">
+    <div class="chat-head-info">
+      <div class="chat-head-name">
         {{ other_user.username }}
         <span id="online-indicator" class="status-dot"
-              style="width:10px;height:10px;border-radius:50%;display:inline-block;
-                     {% if other_user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"
+              style="{% if other_user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"
               title="{% if other_user.is_online %}Online{% else %}Offline{% endif %}"></span>
       </div>
-      <div id="last-seen-text" style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+      <div id="last-seen-text">
         {% if other_user.is_online %}
           Online
         {% elif other_user.last_seen %}
@@ -58,29 +52,20 @@
   </div>
 
   <!-- Messages -->
-  <div id="msg-box" style="height:420px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth;">
+  <div id="msg-box">
     {% for msg in chat_messages %}
-      <div class="message" data-message-id="{{ msg.id }}" data-sender-id="{{ msg.sender.id }}"
+      <div class="message {% if msg.sender == request.user %}message-own{% else %}message-other{% endif %}"
+           data-message-id="{{ msg.id }}" data-sender-id="{{ msg.sender.id }}"
            data-read="{% if msg.is_read %}true{% else %}false{% endif %}"
-           data-delivered="{% if msg.is_delivered %}true{% else %}false{% endif %}"
-           style="display:flex;flex-direction:column;max-width:76%;
-                  align-self:{% if msg.sender == request.user %}flex-end{% else %}flex-start{% endif %};
-                  align-items:{% if msg.sender == request.user %}flex-end{% else %}flex-start{% endif %};">
-        
+           data-delivered="{% if msg.is_delivered %}true{% else %}false{% endif %}">
+
         {% if msg.photo %}
-          <img src="{{ msg.photo.url }}" 
-               style="max-width:220px;border-radius:14px;cursor:pointer;border:1px solid var(--border);"
+          <img src="{{ msg.photo.url }}" class="msg-photo" alt=""
                onclick="window.open(this.src)">
         {% endif %}
 
         {% if msg.text %}
-          <div style="max-width:100%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;
-                      {% if msg.sender == request.user %}
-                        background:linear-gradient(135deg,var(--accent),#6a5af0);color:white;border-bottom-right-radius:4px;
-                      {% else %}
-                        background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px;
-                      {% endif %}
-                      position:relative;word-break:break-word;">
+          <div class="msg-bubble">
             {{ msg.text }}
             {% if msg.sender == request.user %}
               <span class="read-status" style="font-size:10px;margin-left:8px;opacity:0.9;white-space:nowrap;{% if msg.is_read %}color:#4ade80;{% elif msg.is_delivered %}color:rgba(255,255,255,0.9);{% else %}color:rgba(255,255,255,0.6);{% endif %}"
@@ -91,7 +76,7 @@
           </div>
         {% elif msg.photo and msg.sender == request.user %}
           <!-- photo-only message: tick lives in its own row -->
-          <div style="display:flex;justify-content:flex-end;">
+          <div class="msg-tick-row">
             <span class="read-status" style="font-size:10px;opacity:0.9;white-space:nowrap;{% if msg.is_read %}color:#4ade80;{% elif msg.is_delivered %}color:rgba(255,255,255,0.9);{% else %}color:rgba(255,255,255,0.6);{% endif %}"
                   data-message-id="{{ msg.id }}"
                   data-read="{% if msg.is_read %}true{% else %}false{% endif %}"
@@ -99,44 +84,42 @@
           </div>
         {% endif %}
 
-        <div style="font-size:10.5px;color:var(--muted-2);margin-top:3px;">
+        <div class="msg-time">
           {{ msg.timestamp|date:"d M, g:i A" }}
         </div>
       </div>
     {% empty %}
-      <div style="text-align:center;color:var(--muted);font-size:14px;margin:auto;padding:2rem;">
-        <div style="font-size:2rem;margin-bottom:10px;">👋</div>
-        No messages yet — say hi!
+      <div class="empty-state">
+        <span class="empty-title">No messages yet — say hi!</span>
+        <span class="empty-text">Messages you send appear here in real time.</span>
       </div>
     {% endfor %}
   </div>
 
   <!-- Typing indicator -->
-  <div id="typing-indicator" style="padding:0 16px 8px;font-size:12px;color:var(--accent-soft);height:16px;display:none;font-style:italic;">
+  <div id="typing-indicator">
     <span id="typing-text"></span>
   </div>
 
   <!-- Input Box -->
-  <form id="msg-form" method="POST" enctype="multipart/form-data"
-        style="padding:14px 16px 16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px;background:var(--surface);">
+  <form id="msg-form" class="composer" method="POST" enctype="multipart/form-data">
     {% csrf_token %}
 
-    <div id="send-error" style="display:none;color:var(--danger);font-size:12.5px;padding:0 4px;"></div>
+    <div id="send-error"></div>
 
-    <div style="display:flex;gap:8px;align-items:center;">
-      <button type="button" id="photo-btn" title="Attach photo"
-              style="width:auto;padding:10px 12px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);color:var(--muted);font-size:16px;box-shadow:none;flex-shrink:0;">📷</button>
-      <input type="text" name="text" id="msg-input" placeholder="Type a message..." autocomplete="off"
-             style="margin-top:0;flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:24px;background:var(--bg);color:var(--text);font-size:14px;outline:none;">
-      <button type="submit" id="send-btn"
-              style="width:auto;padding:12px 20px;border:none;border-radius:24px;background:linear-gradient(135deg,var(--accent),#6a5af0);color:white;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(124,109,250,0.35);flex-shrink:0;">Send ➤</button>
+    <div class="composer-row">
+      <button type="button" id="photo-btn" title="Attach photo" aria-label="Attach photo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 16-5-5-6 6-2-2-5 5"/></svg>
+      </button>
+      <input type="text" name="text" id="msg-input" placeholder="Type a message..." autocomplete="off">
+      <button type="submit" id="send-btn">Send</button>
     </div>
 
     <!-- Photo Upload -->
-    <div style="display:flex;align-items:center;gap:10px;">
+    <div class="composer-row">
       <input type="file" name="photo" id="photo" accept="image/*"
              style="display:none;">
-      <span id="photo-preview" style="display:none;font-size:12px;color:var(--accent-soft);">📷 1 image selected</span>
+      <span id="photo-preview">1 image selected</span>
     </div>
 
   </form>
@@ -155,14 +138,14 @@
   const otherUsername = '{{ other_user.username }}';
   const otherUserId = {{ other_user.id }};
   const csrfToken = '{{ csrf_token }}';
-  
+
   let ws = null;
   let reconnectAttempts = 0;
   let reconnectTimer = null;
   let pageUnloading = false;
   let typingTimeout = null;
   let isTyping = false;
-  
+
   // DOM elements
   const msgBox = document.getElementById('msg-box');
   const msgForm = document.getElementById('msg-form');
@@ -200,7 +183,7 @@
   if (window.appPresenceSocket && window.appPresenceSocket.readyState === WebSocket.OPEN) {
     requestOtherStatus();
   }
-  
+
   // Connect to WebSocket
   function connect() {
     if (pageUnloading) return;
@@ -213,36 +196,36 @@
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws/chat/${otherUsername}/`;
-    
+
     ws = new WebSocket(wsUrl);
-    
+
     ws.onopen = function() {
       console.log('WebSocket connected');
       reconnectAttempts = 0;
       clearTimeout(reconnectTimer);
-      
+
       // Request initial messages (optional - they're already loaded)
       // Mark existing messages as read
       // (the conversation IS open, so re-syncing read state on every
       // reconnect is correct — the server re-flushes deliveries too)
       markMessagesRead();
     };
-    
+
     ws.onmessage = function(event) {
       const data = JSON.parse(event.data);
       handleWebSocketMessage(data);
     };
-    
+
     ws.onclose = function() {
       console.log('WebSocket disconnected');
       attemptReconnect();
     };
-    
+
     ws.onerror = function(error) {
       console.error('WebSocket error:', error);
     };
   }
-  
+
   // Reconnect FOREVER with capped exponential backoff (1s, 2s, 4s, ... 30s).
   // The old 5-attempt cap gave up silently after ~15s of outage, leaving the
   // DM deaf (no messages, no presence, no tick updates) until a manual
@@ -279,7 +262,7 @@
       connect();
     }
   });
-  
+
   function handleWebSocketMessage(data) {
     switch(data.type) {
       case 'message':
@@ -303,7 +286,7 @@
         break;
     }
   }
-  
+
   function escapeHtml(str) {
     if (!str) return '';
     const div = document.createElement('div');
@@ -311,6 +294,7 @@
     return div.innerHTML;
   }
 
+  // Markup mirrors the server-rendered messages above — keep them in sync.
   function appendMessage(message) {
     if (!message) {
       return;
@@ -322,30 +306,23 @@
 
     const isOwn = message.sender_id === currentUserId;
     const messageDiv = document.createElement('div');
-    messageDiv.className = 'message';
+    messageDiv.className = 'message ' + (isOwn ? 'message-own' : 'message-other');
     messageDiv.dataset.messageId = message.id;
     messageDiv.dataset.senderId = message.sender_id;
     messageDiv.dataset.read = message.is_read ? 'true' : 'false';
     messageDiv.dataset.delivered = message.is_delivered ? 'true' : 'false';
-    messageDiv.style.cssText = `display:flex;flex-direction:column;max-width:76%;align-self:${isOwn ? 'flex-end' : 'flex-start'};align-items:${isOwn ? 'flex-end' : 'flex-start'};`;
 
     let html = '';
     if (message.photo_url) {
-      html += `<img src="${message.photo_url}" style="max-width:220px;border-radius:14px;cursor:pointer;border:1px solid var(--border);" onclick="window.open(this.src)">`;
+      html += `<img src="${message.photo_url}" class="msg-photo" alt="" onclick="window.open(this.src)">`;
     }
     if (message.text) {
-      html += `<div style="max-width:100%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-break:break-word;
-                      ${isOwn
-                        ? `background:linear-gradient(135deg,var(--accent),#6a5af0);color:white;border-bottom-right-radius:4px;`
-                        : `background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px;`}">
-                ${escapeHtml(message.text)}
-                ${isOwn ? tickMarkup(message) : ''}
-               </div>`;
+      html += `<div class="msg-bubble">${escapeHtml(message.text)}${isOwn ? tickMarkup(message) : ''}</div>`;
     } else if (message.photo_url && isOwn) {
       // photo-only message: tick in its own row
-      html += `<div style="display:flex;justify-content:flex-end;">${tickMarkup(message)}</div>`;
+      html += `<div class="msg-tick-row">${tickMarkup(message)}</div>`;
     }
-    html += `<div style="font-size:10.5px;color:var(--muted-2);margin-top:3px;">${formatTime(message.timestamp)}</div>`;
+    html += `<div class="msg-time">${formatTime(message.timestamp)}</div>`;
 
     messageDiv.innerHTML = html;
     msgBox.appendChild(messageDiv);
@@ -363,7 +340,7 @@
              data-read="${message.is_read ? 'true' : 'false'}"
              data-delivered="${message.is_delivered ? 'true' : 'false'}">${text}</span>`;
   }
-  
+
   function updateUserStatus(data) {
     // Ignore broadcasts about the current user's own connection status
     if (data.username && data.username === currentUsername) {
@@ -385,7 +362,7 @@
       }
     }
   }
-  
+
   function updateDeliveredStatus(messageIds) {
     messageIds.forEach(id => {
       const statusEl = document.querySelector(`.read-status[data-message-id="${id}"]`);
@@ -418,7 +395,7 @@
       }
     });
   }
-  
+
   function showTypingIndicator(data) {
     if (data.username === currentUsername) {
       return;
@@ -431,7 +408,7 @@
       typingIndicator.style.display = 'none';
     }
   }
-  
+
   function formatTime(isoString) {
     if (!isoString) {
       return '';
@@ -448,11 +425,11 @@
     }
     return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ', ' + timeStr;
   }
-  
+
   function scrollToBottom() {
     msgBox.scrollTop = msgBox.scrollHeight;
   }
-  
+
   // Send message via WebSocket
   async function sendMessage(text) {
     const formData = new FormData(msgForm);
@@ -482,7 +459,7 @@
       appendMessage(data.message);
     }
   }
-  
+
   // Mark messages as read
   function markMessagesRead() {
     const unreadMessages = document.querySelectorAll('.message:not([data-read="true"])');
@@ -509,7 +486,7 @@
       });
     }
   }
-  
+
   function markMessageAsRead(messageId) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
@@ -518,7 +495,7 @@
       }));
     }
   }
-  
+
   // Handle form submission
   const photoInput = document.getElementById('photo');
   const photoPreview = document.getElementById('photo-preview');
@@ -568,18 +545,18 @@
       }
     }
   });
-  
+
   // Typing indicator
   msgInput.addEventListener('input', function() {
     if (!isTyping) {
       isTyping = true;
       sendTypingStatus(true);
     }
-    
+
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(stopTyping, 2000);
   });
-  
+
   function stopTyping() {
     if (isTyping) {
       isTyping = false;
@@ -587,7 +564,7 @@
     }
     clearTimeout(typingTimeout);
   }
-  
+
   function sendTypingStatus(typing) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
@@ -596,10 +573,24 @@
       }));
     }
   }
-  
+
+  // Mobile keyboard / viewport: keep the newest messages above the composer.
+  // Chrome resizes the layout viewport (interactive-widget=resizes-content,
+  // so 100dvh shrinks with it); iOS resizes only the visual viewport —
+  // re-pin the scroll there too when the keyboard opens or closes.
+  msgInput.addEventListener('focus', function() {
+    setTimeout(scrollToBottom, 250);
+  });
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function() {
+      scrollToBottom();
+    });
+  }
+
   // Initialize
   connect();
-  
+
   // Clean up on page unload (flag first so onclose does not schedule a
   // reconnect for a document that is going away)
   window.addEventListener('beforeunload', function() {

@@ -1,44 +1,63 @@
 {% extends 'login/base.html' %}
-{% block title %}Login{% endblock %}
+{% block title %}Login · WebChat{% endblock %}
+{% block body_class %}auth-view{% endblock %}
 
 {% block content %}
-<div class="card" style="margin:0 auto;">
+<div class="auth-layout">
 
-    <div class="card-header">
-        <h2>Welcome back 👋</h2>
+    <aside class="auth-hero">
+        <span class="auth-brand"><span class="logo-dot"></span>WebChat</span>
+        <div>
+            <h1>Welcome back.</h1>
+            <p class="hero-lede">Sign in to pick up your conversations right where you left them.</p>
+        </div>
+        <ul class="auth-points">
+            <li>Real-time messaging over WebSockets</li>
+            <li>Online presence and typing indicators</li>
+            <li>Delivery ticks and read receipts</li>
+        </ul>
+        <p class="auth-hero-foot">Simple, fast conversations — right in your browser.</p>
+    </aside>
+
+    <div class="card auth-card">
+
+        <div class="card-header">
+            <h2>Sign in</h2>
+        </div>
+        <p class="sub">Enter your credentials to continue</p>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="POST">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-wrap">
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                    <button type="button" class="toggle-btn" aria-label="Show password" onclick="togglePassword('password', this)">Show</button>
+                </div>
+            </div>
+
+            <button type="submit">Login</button>
+
+        </form>
+
+        <div class="divider"></div>
+        <p class="auth-alt">Don't have an account? <a href="{% url 'register-view' %}">Create one</a></p>
+
     </div>
-    <p class="sub">Sign in to continue to your chats</p>
-
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
-                <span>{{ message }}</span>
-            </div>
-        {% endfor %}
-    {% endif %}
-
-    <form method="POST">
-        {% csrf_token %}
-
-        <div class="form-group">
-            <label for="username">Username</label>
-            <input type="text" id="username" name="username" placeholder="Enter your username" required autofocus>
-        </div>
-
-        <div class="form-group">
-            <label for="password">Password</label>
-            <div class="input-wrap">
-                <input type="password" id="password" name="password" placeholder="Enter your password" required>
-                <button type="button" class="toggle-btn" onclick="togglePassword('password', this)">👁</button>
-            </div>
-        </div>
-
-        <button type="submit">Login</button>
-
-    </form>
-
-    <div class="divider"></div>
-    <p class="auth-alt">Don't have an account? <a href="{% url 'register-view' %}">Create one</a></p>
 
 </div>
 
@@ -47,10 +66,12 @@ function togglePassword(id, btn) {
     const input = document.getElementById(id);
     if (input.type === 'password') {
         input.type = 'text';
-        btn.textContent = '🙈';
+        btn.textContent = 'Hide';
+        btn.setAttribute('aria-label', 'Hide password');
     } else {
         input.type = 'password';
-        btn.textContent = '👁';
+        btn.textContent = 'Show';
+        btn.setAttribute('aria-label', 'Show password');
     }
 }
 </script>

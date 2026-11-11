@@ -1,14 +1,15 @@
 {% extends 'login/base.html' %}
-{% block title %}{{ profile_user.username }}'s Profile{% endblock %}
+{% block title %}{{ profile_user.username }}'s Profile · WebChat{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:420px;margin:0 auto;text-align:center;">
+<div class="card" style="max-width:440px;margin:0 auto;text-align:center;">
 
   <!-- Profile Pic -->
   <div style="margin-bottom:16px;">
     {% if profile.profile_pic %}
       <img src="{{ profile.profile_pic.url }}"
-           class="avatar" style="width:104px;height:104px;border:3px solid var(--accent);">
+           class="avatar" alt=""
+           style="width:104px;height:104px;border:2px solid rgba(139,92,246,.6);">
     {% else %}
       <div class="avatar-placeholder" style="width:104px;height:104px;font-size:2.6rem;margin:0 auto;">
         {{ profile_user.username|first|upper }}
@@ -19,7 +20,7 @@
   <!-- Presence -->
   <div style="margin-bottom:16px;">
     {% if profile_user.is_online %}
-      <span class="badge-plain" style="color:var(--online);border-color:rgba(74,222,128,0.4);">
+      <span class="badge-plain" style="color:var(--online);border-color:rgba(74,222,128,.4);">
         ● Online now
       </span>
     {% else %}
@@ -41,7 +42,7 @@
   </div>
 
   <!-- Joined Date -->
-  <div style="background:var(--bg);border:1px solid var(--border);
+  <div class="center" style="background:var(--bg);border:1px solid var(--border-soft);
               border-radius:12px;padding:14px;margin-bottom:20px;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <span class="muted" style="font-size:13px;">Joined</span>
@@ -55,9 +56,9 @@
   <div style="display:flex;gap:10px;">
     <a href="{% url 'chat:conversation-view' profile_user.username %}"
        class="btn" style="flex:1;">
-      💬 Send Message
+      Send Message
     </a>
-    <a href="javascript:history.back()" class="btn btn-outline" style="width:auto;">
+    <a href="javascript:history.back()" class="btn btn-outline" style="width:auto;flex-shrink:0;">
       ← Back
     </a>
   </div>

@@ -41,6 +41,11 @@ def home_redirect_view(request):
     return redirect('chat:home-view')
 
 
+def about_view(request):
+    """Public About page: product intro, implemented features, tech stack, credit."""
+    return render(request, 'login/about.html')
+
+
 def register_view(request):
     if request.user.is_authenticated:
         return redirect('chat:home-view')
