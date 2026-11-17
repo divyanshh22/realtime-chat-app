@@ -195,3 +195,16 @@ def test_about_page_renders_for_everyone_with_credit(anon_client):
     assert "Redis" in html
     # Django REST Framework is NOT used — never claim it
     assert "Django REST Framework" not in html
+
+
+def test_unknown_url_renders_custom_404_page(anon_client):
+    """Unknown URLs must serve the branded 404 page (DEBUG=False in tests)."""
+    resp = anon_client.get("/this-page-does-not-exist/")
+    assert resp.status_code == 404
+    assert "404.html" in [t.name for t in resp.templates]
+
+    html = resp.content.decode()
+    assert "Page not found" in html
+    assert "Back to home" in html
+    # branded: renders through the shared base template/design system
+    assert "WebChat" in html

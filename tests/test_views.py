@@ -377,14 +377,13 @@ def test_user_status_api_returns_presence(auth_client, user, other_user):
 # --------------------------------------------------------------------------- #
 # Custom error pages
 # --------------------------------------------------------------------------- #
-def test_default_404_page_used_when_no_custom_template(db):
-    """No custom 404 template exists in this project — Django's default is used."""
+def test_custom_404_page_used(db):
+    """A custom branded 404 template exists and is what Django serves."""
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
-    assert not (root / "templates" / "404.html").exists()
-    for app in ("chat", "login"):
-        assert not (root / app / "templates" / "404.html").exists()
+    assert (root / "login" / "templates" / "404.html").exists()
 
     resp = Client().get("/definitely/not/a/real/path/xyz/")
     assert resp.status_code == 404
+    assert "404.html" in [t.name for t in resp.templates]
