@@ -1,66 +1,78 @@
 {% extends 'login/base.html' %}
-{% block title %}Search Users · WebChat{% endblock %}
+{% block title %}Search people · WebChat{% endblock %}
 
 {% block content %}
-<div class="card inbox-card">
+<div class="content-page mid">
 
-  <div class="inbox-top">
-    <h2 class="section-title">SEARCH USERS</h2>
-  </div>
-  <p class="sub">Find people by username</p>
+  <header class="content-header">
+    <div>
+      <span class="eyebrow">People</span>
+      <h1 class="page-title">Search people</h1>
+      <p class="page-sub">Find someone by username and start a conversation.</p>
+    </div>
+    <a href="{% url 'chat:home-view' %}" class="btn btn-outline btn-sm">Back to chats</a>
+  </header>
 
-  <!-- Search Form -->
-  <form class="search-row" method="GET" action="{% url 'chat:search-view' %}" style="margin-bottom:18px;">
-    <input type="text" name="q" value="{{ query }}"
-           placeholder="Enter username..." autofocus autocomplete="off">
-    <button type="submit" class="icon-btn" aria-label="Search">
+  <section class="page-card" aria-label="User search">
+
+    <form class="search-field search-field--page" method="GET" action="{% url 'chat:search-view' %}" role="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
-    </button>
-  </form>
+      <input type="text" name="q" value="{{ query }}"
+             placeholder="Enter a username…" autofocus autocomplete="off" aria-label="Search by username">
+      <button type="submit" class="search-submit" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+      </button>
+    </form>
 
-  <!-- Results -->
-  {% if results %}
-    {% for user in results %}
-    <div class="chat-user-row" style="justify-content:space-between;cursor:default;">
-      <div style="display:flex;align-items:center;gap:13px;min-width:0;flex:1;">
-        <span class="row-avatar">
+    <div class="search-results">
+    {% if results %}
+      {% for user in results %}
+      <div class="person-row">
+        <span class="person-avatar">
           {% if user.profilepic.profile_pic %}
             <img src="{{ user.profilepic.profile_pic.url }}" class="avatar" alt="">
           {% else %}
-            <div class="avatar-placeholder">{{ user.username|first|upper }}</div>
+            <span class="avatar-placeholder" aria-hidden="true">{{ user.username|first|upper }}</span>
           {% endif %}
           <span class="status-dot chat-presence-dot"
-                style="{% if user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"></span>
+                style="{% if user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"
+                title="{% if user.is_online %}Online{% else %}Offline{% endif %}"></span>
         </span>
 
-        <span class="row-main">
-          <span class="chat-user-name">{{ user.username }}</span>
-          <span class="chat-user-preview">{{ user.first_name }} {{ user.last_name }}</span>
+        <span class="person-info">
+          <span class="person-name">{{ user.username }}</span>
+          <span class="person-sub">
+            {% if user.first_name or user.last_name %}{{ user.first_name }} {{ user.last_name }}{% else %}@{{ user.username }}{% endif %}
+          </span>
+        </span>
+
+        <span class="person-actions">
+          <a href="{% url 'user_profile' user.username %}" class="btn btn-outline btn-sm">Profile</a>
+          <a href="{% url 'chat:conversation-view' user.username %}" class="btn btn-sm">Chat</a>
         </span>
       </div>
+      {% endfor %}
 
-      <div style="display:flex;gap:8px;flex-shrink:0;">
-        <a href="{% url 'user_profile' user.username %}" class="btn btn-outline btn-sm">Profile</a>
-        <a href="{% url 'chat:conversation-view' user.username %}" class="btn btn-sm">Chat</a>
+    {% elif query %}
+      <div class="empty-state">
+        <span class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+        </span>
+        <span class="empty-title">No results</span>
+        <span class="empty-text">No user found with “{{ query }}”. Try a different username.</span>
       </div>
+
+    {% else %}
+      <div class="empty-state">
+        <span class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+        </span>
+        <span class="empty-title">Search for someone</span>
+        <span class="empty-text">Type a username above to find people and start chatting.</span>
+      </div>
+    {% endif %}
     </div>
-    {% endfor %}
 
-  {% elif query %}
-    <div class="empty-state">
-      <span class="empty-title">No results</span>
-      <span class="empty-text">No user found with "{{ query }}".</span>
-    </div>
-
-  {% else %}
-    <div class="empty-state">
-      <span class="empty-title">Search for a user</span>
-      <span class="empty-text">Type a username above to find people.</span>
-    </div>
-  {% endif %}
-
-  <div class="divider"></div>
-  <a href="{% url 'chat:home-view' %}" class="btn btn-outline btn-block">← Back to Chats</a>
-
+  </section>
 </div>
 {% endblock %}

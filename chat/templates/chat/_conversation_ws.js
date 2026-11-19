@@ -1,0 +1,467 @@
+  const currentUserId = {{ request.user.id }};
+  const currentUsername = '{{ request.user.username }}';
+  const otherUsername = '{{ other_user.username }}';
+  const otherUserId = {{ other_user.id }};
+  const csrfToken = '{{ csrf_token }}';
+
+  let ws = null;
+  let reconnectAttempts = 0;
+  let reconnectTimer = null;
+  let pageUnloading = false;
+  let typingTimeout = null;
+  let isTyping = false;
+
+  // DOM elements
+  const msgBox = document.getElementById('msg-box');
+  const msgForm = document.getElementById('msg-form');
+  const msgInput = document.getElementById('msg-input');
+  const sendBtn = document.getElementById('send-btn');
+  const typingIndicator = document.getElementById('typing-indicator');
+  const typingText = document.getElementById('typing-text');
+  const onlineIndicator = document.getElementById('online-indicator');
+  const sendError = document.getElementById('send-error');
+
+  // --------------------------------------------------------------------- //
+  // App-wide presence: the socket lives in base.html (one per tab, open on
+  // every page). We only listen for events about THIS conversation's user,
+  // so status stays correct no matter which DM or page is open.
+  // --------------------------------------------------------------------- //
+  function requestOtherStatus() {
+    const socket = window.appPresenceSocket;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'get_status', user_ids: [otherUserId] }));
+    }
+  }
+
+  window.addEventListener('presence-message', function(e) {
+    const data = e.detail;
+    if (!data) return;
+
+    if (data.type === 'presence_update' && data.user_id === otherUserId) {
+      updateUserStatus(data);
+    } else if (data.type === 'bulk_status' && data.statuses && data.statuses[String(otherUserId)]) {
+      const info = data.statuses[String(otherUserId)];
+      updateUserStatus({ status: info.status, last_seen: info.last_seen });
+    }
+  });
+  window.addEventListener('presence-open', requestOtherStatus);
+  if (window.appPresenceSocket && window.appPresenceSocket.readyState === WebSocket.OPEN) {
+    requestOtherStatus();
+  }
+
+  // Connect to WebSocket
+  function connect() {
+    if (pageUnloading) return;
+    // Never open a second socket while one is live (stray retry timer
+    // racing the 'online' event, pageshow, ...) — duplicate sockets would
+    // duplicate message frames and read/delivery handlers.
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+      return;
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/chat/${otherUsername}/`;
+
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = function() {
+      console.log('WebSocket connected');
+      reconnectAttempts = 0;
+      clearTimeout(reconnectTimer);
+
+      // Request initial messages (optional - they're already loaded)
+      // Mark existing messages as read
+      // (the conversation IS open, so re-syncing read state on every
+      // reconnect is correct — the server re-flushes deliveries too)
+      markMessagesRead();
+    };
+
+    ws.onmessage = function(event) {
+      const data = JSON.parse(event.data);
+      handleWebSocketMessage(data);
+    };
+
+    ws.onclose = function() {
+      console.log('WebSocket disconnected');
+      attemptReconnect();
+    };
+
+    ws.onerror = function(error) {
+      console.error('WebSocket error:', error);
+    };
+  }
+
+  // Reconnect FOREVER with capped exponential backoff (1s, 2s, 4s, ... 30s).
+  // The old 5-attempt cap gave up silently after ~15s of outage, leaving the
+  // DM deaf (no messages, no presence, no tick updates) until a manual
+  // refresh — while delivery/read receipts are pushed over this socket.
+  function attemptReconnect() {
+    if (pageUnloading) return;
+    clearTimeout(reconnectTimer);
+    reconnectAttempts += 1;
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000);
+    reconnectTimer = setTimeout(connect, delay);
+  }
+
+  // Network is back: retry immediately instead of waiting out the backoff
+  // (the server flushes pending deliveries the moment we reconnect).
+  window.addEventListener('online', function() {
+    if (pageUnloading) return;
+    clearTimeout(reconnectTimer);
+    reconnectAttempts = 0;
+    connect();
+  });
+
+  // Page is going away (navigation / logout): stop retrying.
+  window.addEventListener('pagehide', function() {
+    pageUnloading = true;
+    clearTimeout(reconnectTimer);
+  });
+
+  // Restored from the back/forward cache: the socket was dropped while
+  // frozen — reopen it (fresh loads call connect() below instead).
+  window.addEventListener('pageshow', function(event) {
+    pageUnloading = false;
+    if (event.persisted) {
+      reconnectAttempts = 0;
+      connect();
+    }
+  });
+
+  function handleWebSocketMessage(data) {
+    switch(data.type) {
+      case 'message':
+        appendMessage(data.message);
+        // Auto-mark as read when received (only for messages from the other user)
+        if (data.message.sender_id !== currentUserId) {
+          markMessageAsRead(data.message.id);
+        }
+        break;
+      case 'message_delivered':
+        updateDeliveredStatus(data.message_ids);
+        break;
+      case 'user_status':
+        updateUserStatus(data);
+        break;
+      case 'messages_read':
+        updateReadStatus(data.message_ids);
+        break;
+      case 'typing':
+        showTypingIndicator(data);
+        break;
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Markup mirrors the server-rendered messages above — keep them in sync.
+  function appendMessage(message) {
+    if (!message) {
+      return;
+    }
+    // Check if message already exists
+    if (document.querySelector(`.message[data-message-id="${message.id}"]`)) {
+      return;
+    }
+
+    const isOwn = message.sender_id === currentUserId;
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ' + (isOwn ? 'message-own' : 'message-other');
+    messageDiv.dataset.messageId = message.id;
+    messageDiv.dataset.senderId = message.sender_id;
+    messageDiv.dataset.read = message.is_read ? 'true' : 'false';
+    messageDiv.dataset.delivered = message.is_delivered ? 'true' : 'false';
+
+    let html = '';
+    if (message.photo_url) {
+      html += `<img src="${message.photo_url}" class="msg-photo" alt="Shared photo" loading="lazy" decoding="async" onclick="window.open(this.src)">`;
+    }
+    if (message.text) {
+      html += `<div class="msg-bubble">${escapeHtml(message.text)}${isOwn ? tickMarkup(message) : ''}</div>`;
+    } else if (message.photo_url && isOwn) {
+      // photo-only message: tick in its own row
+      html += `<div class="msg-tick-row">${tickMarkup(message)}</div>`;
+    }
+    html += `<div class="msg-time">${formatTime(message.timestamp)}</div>`;
+
+    messageDiv.innerHTML = html;
+    msgBox.appendChild(messageDiv);
+    scrollToBottom();
+  }
+
+  // 3-state tick: sent = single ✓, delivered = double ✓✓, read = double ✓✓ green
+  function tickMarkup(message) {
+    const state = message.is_read ? 'read' : (message.is_delivered ? 'delivered' : 'sent');
+    const text = state === 'sent' ? '✓' : '✓✓';
+    const color = state === 'read' ? '#4ade80' : (state === 'delivered' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)');
+    const margin = message.text ? 'margin-left:8px;' : '';
+    return `<span class="read-status" style="font-size:10px;${margin}opacity:0.9;white-space:nowrap;color:${color};"
+             data-message-id="${message.id}"
+             data-read="${message.is_read ? 'true' : 'false'}"
+             data-delivered="${message.is_delivered ? 'true' : 'false'}">${text}</span>`;
+  }
+
+  function updateUserStatus(data) {
+    // Ignore broadcasts about the current user's own connection status
+    if (data.username && data.username === currentUsername) {
+      return;
+    }
+
+    const isOnline = data.status === 'online';
+    onlineIndicator.style.background = isOnline ? '#4ade80' : '#9ca3af';
+    onlineIndicator.title = isOnline ? 'Online' : 'Offline';
+
+    const lastSeenEl = document.getElementById('last-seen-text');
+    if (lastSeenEl) {
+      if (isOnline) {
+        lastSeenEl.textContent = 'Online';
+      } else if (data.last_seen) {
+        lastSeenEl.textContent = 'Last seen ' + formatTime(data.last_seen);
+      } else {
+        lastSeenEl.textContent = 'Offline';
+      }
+    }
+  }
+
+  function updateDeliveredStatus(messageIds) {
+    messageIds.forEach(id => {
+      const statusEl = document.querySelector(`.read-status[data-message-id="${id}"]`);
+      // Never downgrade a tick that is already green (read).
+      if (statusEl && statusEl.dataset.read !== 'true') {
+        statusEl.textContent = '✓✓';
+        statusEl.style.color = 'rgba(255,255,255,0.9)';
+        statusEl.dataset.delivered = 'true';
+      }
+      const msgEl = document.querySelector(`.message[data-message-id="${id}"]`);
+      if (msgEl) {
+        msgEl.dataset.delivered = 'true';
+      }
+    });
+  }
+
+  function updateReadStatus(messageIds) {
+    messageIds.forEach(id => {
+      const statusEl = document.querySelector(`.read-status[data-message-id="${id}"]`);
+      if (statusEl) {
+        statusEl.textContent = '✓✓';
+        statusEl.style.color = '#4ade80';
+        statusEl.dataset.read = 'true';
+        statusEl.dataset.delivered = 'true';
+      }
+      const msgEl = document.querySelector(`.message[data-message-id="${id}"]`);
+      if (msgEl) {
+        msgEl.dataset.read = 'true';
+        msgEl.dataset.delivered = 'true';
+      }
+    });
+  }
+
+  function showTypingIndicator(data) {
+    if (data.username === currentUsername) {
+      return;
+    }
+
+    if (data.is_typing) {
+      typingText.textContent = `${data.username} is typing...`;
+      typingIndicator.style.display = 'block';
+    } else {
+      typingIndicator.style.display = 'none';
+    }
+  }
+
+  function formatTime(isoString) {
+    if (!isoString) {
+      return '';
+    }
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (sameDay) {
+      return timeStr;
+    }
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ', ' + timeStr;
+  }
+
+  function scrollToBottom() {
+    msgBox.scrollTop = msgBox.scrollHeight;
+  }
+
+  // Send message via WebSocket
+  async function sendMessage(text) {
+    const formData = new FormData(msgForm);
+    if (text) {
+      formData.set('text', text);
+    }
+
+    const response = await fetch(`{% url 'chat:send-message-api' other_user.username %}`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+      },
+      body: formData,
+    });
+
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (e) {
+      // non-JSON error page (proxy/502) — fall through to the status text
+    }
+    if (!response.ok) {
+      throw new Error(data.error || `Could not send the message (HTTP ${response.status}). Please try again.`);
+    }
+
+    if (data.message) {
+      appendMessage(data.message);
+    }
+  }
+
+  // Mark messages as read
+  function markMessagesRead() {
+    const unreadMessages = document.querySelectorAll('.message:not([data-read="true"])');
+    const messageIds = [];
+    unreadMessages.forEach(el => {
+      const id = el.dataset.messageId;
+      const senderId = parseInt(el.dataset.senderId || '0', 10);
+      if (id && senderId !== currentUserId) {
+        messageIds.push(parseInt(id));
+      }
+    });
+
+    if (messageIds.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'read',
+        message_ids: messageIds
+      }));
+
+      unreadMessages.forEach(el => {
+        const senderId = parseInt(el.dataset.senderId || '0', 10);
+        if (senderId !== currentUserId) {
+          el.dataset.read = 'true';
+        }
+      });
+    }
+  }
+
+  function markMessageAsRead(messageId) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'read',
+        message_ids: [messageId]
+      }));
+    }
+  }
+
+  // Handle form submission
+  const photoInput = document.getElementById('photo');
+  const photoPreview = document.getElementById('photo-preview');
+  const photoBtn = document.getElementById('photo-btn');
+
+  if (photoBtn && photoInput) {
+    photoBtn.addEventListener('click', function() {
+      photoInput.click();
+    });
+  }
+
+  if (photoInput && photoPreview) {
+    photoInput.addEventListener('change', function() {
+      photoPreview.style.display = photoInput.files.length ? 'block' : 'none';
+    });
+  }
+
+  msgForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const text = msgInput.value.trim();
+
+    if (!text && !photoInput.files.length) {
+      return;
+    }
+
+    try {
+      await sendMessage(text);
+      msgInput.value = '';
+      photoInput.value = '';
+      if (photoPreview) {
+        photoPreview.style.display = 'none';
+      }
+      if (sendError) {
+        sendError.style.display = 'none';
+        sendError.textContent = '';
+      }
+      stopTyping();
+    } catch (error) {
+      console.error(error);
+      // Surface storage/server failures (e.g. image upload rejected) in the
+      // UI instead of failing silently in the console.
+      if (sendError) {
+        sendError.textContent = error && error.message
+          ? error.message
+          : 'Could not send the message. Please try again.';
+        sendError.style.display = 'block';
+      }
+    }
+  });
+
+  // Typing indicator
+  msgInput.addEventListener('input', function() {
+    if (!isTyping) {
+      isTyping = true;
+      sendTypingStatus(true);
+    }
+
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(stopTyping, 2000);
+  });
+
+  function stopTyping() {
+    if (isTyping) {
+      isTyping = false;
+      sendTypingStatus(false);
+    }
+    clearTimeout(typingTimeout);
+  }
+
+  function sendTypingStatus(typing) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'typing',
+        is_typing: typing
+      }));
+    }
+  }
+
+  // Mobile keyboard / viewport: keep the newest messages above the composer.
+  // Chrome resizes the layout viewport (interactive-widget=resizes-content,
+  // so 100dvh shrinks with it); iOS resizes only the visual viewport —
+  // re-pin the scroll there too when the keyboard opens or closes.
+  msgInput.addEventListener('focus', function() {
+    setTimeout(scrollToBottom, 250);
+  });
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function() {
+      scrollToBottom();
+    });
+  }
+
+  // Initialize
+  connect();
+
+  // Clean up on page unload (flag first so onclose does not schedule a
+  // reconnect for a document that is going away)
+  window.addEventListener('beforeunload', function() {
+    pageUnloading = true;
+    clearTimeout(reconnectTimer);
+    if (ws) {
+      ws.close();
+    }
+  });

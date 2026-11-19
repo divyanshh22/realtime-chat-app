@@ -1,67 +1,51 @@
 {% extends 'login/base.html' %}
-{% block title %}{{ profile_user.username }}'s Profile · WebChat{% endblock %}
+{% block title %}{{ profile_user.username }}'s profile · WebChat{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:440px;margin:0 auto;text-align:center;">
+<div class="content-page narrow">
+  <section class="page-card profile-public" aria-label="{{ profile_user.username }}'s profile">
 
-  <!-- Profile Pic -->
-  <div style="margin-bottom:16px;">
-    {% if profile.profile_pic %}
-      <img src="{{ profile.profile_pic.url }}"
-           class="avatar" alt=""
-           style="width:104px;height:104px;border:2px solid rgba(139,92,246,.6);">
-    {% else %}
-      <div class="avatar-placeholder" style="width:104px;height:104px;font-size:2.6rem;margin:0 auto;">
-        {{ profile_user.username|first|upper }}
+    <div class="profile-cover" aria-hidden="true"></div>
+
+    <div class="profile-public-body">
+      {% if profile.profile_pic %}
+        <img src="{{ profile.profile_pic.url }}" class="profile-avatar-xl" alt="">
+      {% else %}
+        <span class="profile-avatar-xl placeholder" aria-hidden="true">{{ profile_user.username|first|upper }}</span>
+      {% endif %}
+
+      {% if profile_user.is_online %}
+        <span class="presence-badge is-online">Online now</span>
+      {% else %}
+        <span class="presence-badge">
+          Offline{% if profile_user.last_seen %} · Last seen {{ profile_user.last_seen|timesince }} ago{% endif %}
+        </span>
+      {% endif %}
+
+      <h1>{{ profile_user.username }}</h1>
+      {% if profile_user.first_name or profile_user.last_name %}
+        <p class="profile-fullname">{{ profile_user.first_name }} {{ profile_user.last_name }}</p>
+      {% endif %}
+      {% if profile_user.email %}
+        <p class="profile-email">{{ profile_user.email }}</p>
+      {% endif %}
+
+      <div class="profile-meta-row">
+        <span class="meta-label">Joined</span>
+        <span class="meta-value">{{ profile.joined_date|date:"d M, Y" }}</span>
       </div>
-    {% endif %}
-  </div>
 
-  <!-- Presence -->
-  <div style="margin-bottom:16px;">
-    {% if profile_user.is_online %}
-      <span class="badge-plain" style="color:var(--online);border-color:rgba(74,222,128,.4);">
-        ● Online now
-      </span>
-    {% else %}
-      <span class="badge-plain">
-        ● Offline{% if profile_user.last_seen %} · Last seen {{ profile_user.last_seen|timesince }} ago{% endif %}
-      </span>
-    {% endif %}
-  </div>
-
-  <!-- User Info -->
-  <div style="margin-bottom:24px;">
-    <h2 style="font-size:1.5rem;margin-bottom:4px;">{{ profile_user.username }}</h2>
-    <p class="muted" style="font-size:14px;margin-bottom:4px;">
-      {{ profile_user.first_name }} {{ profile_user.last_name }}
-    </p>
-    <p class="muted" style="font-size:13px;">
-      {{ profile_user.email }}
-    </p>
-  </div>
-
-  <!-- Joined Date -->
-  <div class="center" style="background:var(--bg);border:1px solid var(--border-soft);
-              border-radius:12px;padding:14px;margin-bottom:20px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <span class="muted" style="font-size:13px;">Joined</span>
-      <span style="font-size:13px;color:var(--accent-soft);">
-        {{ profile.joined_date|date:"d M, Y" }}
-      </span>
+      <div class="profile-actions">
+        <a href="{% url 'chat:conversation-view' profile_user.username %}" class="btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          Send message
+        </a>
+        <a href="javascript:history.back()" class="btn btn-outline">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          Back
+        </a>
+      </div>
     </div>
-  </div>
-
-  <!-- Buttons -->
-  <div style="display:flex;gap:10px;">
-    <a href="{% url 'chat:conversation-view' profile_user.username %}"
-       class="btn" style="flex:1;">
-      Send Message
-    </a>
-    <a href="javascript:history.back()" class="btn btn-outline" style="width:auto;flex-shrink:0;">
-      ← Back
-    </a>
-  </div>
-
+  </section>
 </div>
 {% endblock %}

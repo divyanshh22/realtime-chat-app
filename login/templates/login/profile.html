@@ -1,68 +1,75 @@
 {% extends 'login/base.html' %}
-{% block title %}My Profile · WebChat{% endblock %}
+{% block title %}Your profile · WebChat{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:480px;margin:0 auto;">
+<div class="content-page narrow">
 
-  <div class="card-header">
-    <h2>My Profile</h2>
-  </div>
-  <p class="sub">Update your profile info</p>
+  <header class="content-header">
+    <div>
+      <span class="eyebrow">Account</span>
+      <h1 class="page-title">Your profile</h1>
+      <p class="page-sub">Update your photo and account details.</p>
+    </div>
+    <a href="{% url 'chat:home-view' %}" class="btn btn-outline btn-sm">Back to chats</a>
+  </header>
 
-  <!-- Profile Pic Preview -->
-  <div class="center" style="margin-bottom:20px;">
-    {% if profile.profile_pic %}
-      <img src="{{ profile.profile_pic.url }}"
-           class="avatar" alt=""
-           style="width:96px;height:96px;border:2px solid rgba(139,92,246,.6);">
-    {% else %}
-      <div class="avatar-placeholder" style="width:96px;height:96px;font-size:2.2rem;margin:0 auto;">
-        {{ request.user.username|first|upper }}
-      </div>
-    {% endif %}
-  </div>
-
-  <!-- Messages -->
   {% for msg in messages %}
     <div class="alert {% if msg.tags == 'success' %}alert-success{% elif msg.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
       <span>{{ msg }}</span>
     </div>
   {% endfor %}
 
-  <form method="POST" enctype="multipart/form-data">
-    {% csrf_token %}
+  <section class="page-card" aria-label="Profile settings">
 
-    <div class="form-group">
-      <label>Profile Picture</label>
-      <input type="file" name="profile_pic" accept="image/*">
-    </div>
-
-    <div class="grid-2">
-      <div class="form-group">
-        <label>First Name</label>
-        <input type="text" name="first_name" value="{{ request.user.first_name }}">
+    <div class="profile-summary">
+      {% if profile.profile_pic %}
+        <img src="{{ profile.profile_pic.url }}" class="profile-summary-avatar" alt="">
+      {% else %}
+        <span class="profile-summary-avatar placeholder" aria-hidden="true">{{ request.user.username|first|upper }}</span>
+      {% endif %}
+      <div class="profile-summary-text">
+        <h2>
+          {% if request.user.first_name or request.user.last_name %}{{ request.user.first_name }} {{ request.user.last_name }}{% else %}{{ request.user.username }}{% endif %}
+        </h2>
+        <p>@{{ request.user.username }}</p>
+        {% if profile.joined_date %}
+          <span class="badge-plain">Member since {{ profile.joined_date|date:"M Y" }}</span>
+        {% endif %}
       </div>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" class="profile-form">
+      {% csrf_token %}
+
       <div class="form-group">
-        <label>Last Name</label>
-        <input type="text" name="last_name" value="{{ request.user.last_name }}">
+        <label for="profile_pic">Profile picture</label>
+        <input type="file" name="profile_pic" id="profile_pic" accept="image/*">
       </div>
-    </div>
 
-    <div class="form-group">
-      <label>Email</label>
-      <input type="email" name="email" value="{{ request.user.email }}">
-    </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="first_name">First name</label>
+          <input type="text" name="first_name" id="first_name" value="{{ request.user.first_name }}">
+        </div>
+        <div class="form-group">
+          <label for="last_name">Last name</label>
+          <input type="text" name="last_name" id="last_name" value="{{ request.user.last_name }}">
+        </div>
+      </div>
 
-    <div class="form-group">
-      <label>Username</label>
-      <input type="text" value="{{ request.user.username }}" disabled>
-    </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" name="email" id="email" value="{{ request.user.email }}">
+      </div>
 
-    <button type="submit">Save Changes</button>
-  </form>
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" value="{{ request.user.username }}" disabled>
+      </div>
 
-  <div class="divider"></div>
-  <a href="{% url 'chat:home-view' %}" class="btn btn-outline btn-block">← Back to Chats</a>
+      <button type="submit" class="btn btn-block">Save changes</button>
+    </form>
 
+  </section>
 </div>
 {% endblock %}

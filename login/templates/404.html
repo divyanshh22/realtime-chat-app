@@ -1,22 +1,23 @@
 {% extends 'login/base.html' %}
-
 {% block title %}Page not found · WebChat{% endblock %}
 
 {% block content %}
-
-<section class="card notfound-hero">
-  <div class="logo-dot"></div>
-  <p class="about-kicker">ERROR 404</p>
-  <h1 class="nf-code">404</h1>
-  <h2>Page not found</h2>
-  <p class="nf-lede">
-    The page you are looking for doesn't exist, may have been moved,
-    or the link you followed is no longer valid.
-  </p>
-  <div class="nf-actions">
-    <a href="/" class="btn">Back to home</a>
-    <a href="javascript:history.back()" class="btn btn-outline">Go back</a>
-  </div>
-</section>
-
+<div class="content-page extra-narrow">
+  <section class="page-card notfound-hero">
+    <div class="about-mark" aria-hidden="true" style="margin-inline:auto;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+    </div>
+    <p class="about-kicker">Error 404</p>
+    <h1 class="nf-code">404</h1>
+    <h2>Page not found</h2>
+    <p class="nf-lede">
+      The page you are looking for doesn't exist, may have been moved,
+      or the link you followed is no longer valid.
+    </p>
+    <div class="nf-actions">
+      <a href="{% url 'home-view' %}" class="btn">Back to home</a>
+      <a href="javascript:history.back()" class="btn btn-outline">Go back</a>
+    </div>
+  </section>
+</div>
 {% endblock %}

@@ -1,64 +1,105 @@
 {% extends 'login/base.html' %}
-{% block title %}Chats · WebChat{% endblock %}
+{% block title %}Messages · WebChat{% endblock %}
+{% block body_class %}inbox-view{% endblock %}
+
 {% block content %}
-<div class="card inbox-card">
+<div class="messenger">
 
-  <div class="inbox-top">
-    <h2 class="section-title">YOUR CHATS</h2>
-    <span class="badge-plain" id="chat-count"></span>
-  </div>
-
-  <!-- Search Bar -->
-  <form class="search-row" method="GET" action="{% url 'chat:search-view' %}">
-    <input type="text" name="q" placeholder="Search by username..." autocomplete="off">
-    <button type="submit" class="icon-btn" aria-label="Search">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
-    </button>
-  </form>
-
-  <div id="chat-list">
-  {% if chat_users %}
-    {% for user in chat_users %}
-    <a href="{% url 'chat:conversation-view' user.username %}"
-       data-user-id="{{ user.id }}"
-       class="chat-user-row">
-
-      <span class="row-avatar">
-        {% if user.profilepic.profile_pic %}
-          <img src="{{ user.profilepic.profile_pic.url }}" class="avatar" alt="">
-        {% else %}
-          <div class="avatar-placeholder">{{ user.username|first|upper }}</div>
-        {% endif %}
-        <span class="status-dot chat-presence-dot" id="dot-{{ user.id }}"
-              style="{% if user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"
-              title="{% if user.is_online %}Online{% else %}Offline{% endif %}"></span>
-      </span>
-
-      <span class="row-main">
-        <span class="chat-user-name">{{ user.username }}</span>
-        <span class="chat-user-preview">
-          {% if user.last_message_preview %}{{ user.last_message_preview }}{% else %}Start a conversation{% endif %}
-        </span>
-      </span>
-
-      <span class="row-meta">
-        {% if user.last_message_time %}
-          <span class="chat-user-time">{{ user.last_message_time|date:"g:i A" }}</span>
-        {% endif %}
-        <span class="chat-unread-badge" style="{% if not user.unread_count %}display:none;{% endif %}">
-          {{ user.unread_count }}
-        </span>
-      </span>
-    </a>
-    {% endfor %}
-  {% else %}
-    <div class="empty-state">
-      <span class="empty-title">No chats yet</span>
-      <span class="empty-text">Search a user to start a conversation.</span>
-      <a href="{% url 'chat:search-view' %}" class="btn btn-sm" style="margin-top:8px;">Find people</a>
+  <!-- ============ Conversation list ============ -->
+  <aside class="conversation-pane" aria-label="Conversations">
+    <div class="conversation-head">
+      <div>
+        <span class="eyebrow">Inbox</span>
+        <h1 class="conversation-title">
+          Messages
+          <span class="count-pill" id="chat-count">{% if chat_users %}{{ chat_users|length }}{% endif %}</span>
+        </h1>
+      </div>
     </div>
-  {% endif %}
-  </div>
+
+    <!-- Search uses the existing search view -->
+    <form class="search-field" method="GET" action="{% url 'chat:search-view' %}" role="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <input type="text" name="q" placeholder="Search by username…" autocomplete="off" aria-label="Search people by username">
+      <button type="submit" class="search-submit" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+      </button>
+    </form>
+
+    <div id="chat-list" class="conversation-list" aria-label="Your conversations">
+    {% if chat_users %}
+      {% for user in chat_users %}
+      <a href="{% url 'chat:conversation-view' user.username %}"
+         data-user-id="{{ user.id }}"
+         class="conversation-item{% if user.unread_count %} has-unread{% endif %}">
+
+        <span class="conversation-avatar">
+          {% if user.profilepic.profile_pic %}
+            <img src="{{ user.profilepic.profile_pic.url }}" class="avatar" alt="">
+          {% else %}
+            <span class="avatar-placeholder" aria-hidden="true">{{ user.username|first|upper }}</span>
+          {% endif %}
+          <span class="status-dot chat-presence-dot" id="dot-{{ user.id }}"
+                style="{% if user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"
+                title="{% if user.is_online %}Online{% else %}Offline{% endif %}"></span>
+        </span>
+
+        <span class="conversation-main">
+          <span class="conversation-top">
+            <span class="conversation-name">{{ user.username }}</span>
+            {% if user.last_message_time %}
+              <span class="conversation-time">{{ user.last_message_time|date:"g:i A" }}</span>
+            {% endif %}
+          </span>
+          <span class="conversation-bottom">
+            <span class="conversation-preview">{% if user.last_message_preview %}{{ user.last_message_preview }}{% else %}Start a conversation{% endif %}</span>
+            {% if user.unread_count %}
+              <span class="chat-unread-badge">{{ user.unread_count }}</span>
+            {% endif %}
+          </span>
+        </span>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <span class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        </span>
+        <span class="empty-title">No chats yet</span>
+        <span class="empty-text">Search a user to start a conversation.</span>
+        <a href="{% url 'chat:search-view' %}" class="btn btn-sm">Find people</a>
+      </div>
+    {% endif %}
+    </div>
+  </aside>
+
+  <!-- ============ Desktop welcome / empty workspace ============ -->
+  <section class="chat-workspace chat-welcome" aria-label="Welcome">
+    <div class="welcome-inner">
+      <span class="welcome-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      </span>
+      <span class="eyebrow">WebChat</span>
+      <h2>Your conversations, all in one place.</h2>
+      <p>Choose a chat to pick up where you left off, or find someone new. Messages arrive in real time.</p>
+      <a href="{% url 'chat:search-view' %}" class="btn">Start a conversation</a>
+      <div class="welcome-hints" aria-hidden="true">
+        <span class="hint-chip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          Real-time messaging
+        </span>
+        <span class="hint-chip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 16-5-5-6 6-2-2-5 5"/></svg>
+          Photo sharing
+        </span>
+        <span class="hint-chip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 12 5 5L21 4"/><path d="m12 17 5-5"/></svg>
+          Read receipts
+        </span>
+      </div>
+    </div>
+  </section>
+
 </div>
 
 <script>
@@ -129,48 +170,54 @@
 
         const countEl = document.getElementById('chat-count');
         if (countEl) {
-            countEl.textContent = users.length ? users.length + (users.length === 1 ? ' chat' : ' chats') : '';
+            countEl.textContent = users.length ? users.length : '';
         }
 
         if (!users.length) {
-            container.innerHTML =
-                '<div class="empty-state">' +
-                  '<span class="empty-title">No chats yet</span>' +
-                  '<span class="empty-text">Search a user to start a conversation.</span>' +
-                  `<a href="${searchUrl}" class="btn btn-sm" style="margin-top:8px;">Find people</a>` +
-                '</div>';
+            container.innerHTML = `
+                <div class="empty-state">
+                  <span class="empty-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                  </span>
+                  <span class="empty-title">No chats yet</span>
+                  <span class="empty-text">Search a user to start a conversation.</span>
+                  <a href="${searchUrl}" class="btn btn-sm">Find people</a>
+                </div>`;
             return;
         }
 
+        const scrollTop = container.scrollTop;
         container.innerHTML = users.map(user => {
             const name = escapeHtml(user.username);
             const preview = escapeHtml(user.preview || 'Start a conversation');
             const time = formatTime(user.last_message_time);
             const profileMarkup = user.profile_pic_url
                 ? `<img src="${user.profile_pic_url}" class="avatar" alt="">`
-                : `<div class="avatar-placeholder">${escapeHtml(toInitials(user.username))}</div>`;
-
+                : `<span class="avatar-placeholder" aria-hidden="true">${escapeHtml(toInitials(user.username))}</span>`;
             const unreadMarkup = user.unread_count > 0
                 ? `<span class="chat-unread-badge">${user.unread_count}</span>`
                 : '';
 
             return `
-                <a href="${user.conversation_url}" data-user-id="${user.id}" class="chat-user-row">
-                    <span class="row-avatar">
+                <a href="${user.conversation_url}" data-user-id="${user.id}" class="conversation-item${user.unread_count > 0 ? ' has-unread' : ''}">
+                    <span class="conversation-avatar">
                         ${profileMarkup}
                         <span class="status-dot chat-presence-dot" id="dot-${user.id}" style="background:${user.is_online ? 'var(--online)' : 'var(--offline)'};" title="${user.is_online ? 'Online' : 'Offline'}"></span>
                     </span>
-                    <span class="row-main">
-                        <span class="chat-user-name">${name}</span>
-                        <span class="chat-user-preview">${preview}</span>
-                    </span>
-                    <span class="row-meta">
-                        ${time ? `<span class="chat-user-time">${time}</span>` : ''}
-                        ${unreadMarkup}
+                    <span class="conversation-main">
+                        <span class="conversation-top">
+                            <span class="conversation-name">${name}</span>
+                            ${time ? `<span class="conversation-time">${time}</span>` : ''}
+                        </span>
+                        <span class="conversation-bottom">
+                            <span class="conversation-preview">${preview}</span>
+                            ${unreadMarkup}
+                        </span>
                     </span>
                 </a>
             `;
         }).join('');
+        container.scrollTop = scrollTop;
     }
 
     async function refreshInbox() {

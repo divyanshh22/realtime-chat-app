@@ -3,603 +3,250 @@
 {% block body_class %}chat-view{% endblock %}
 
 {% block content %}
-<!-- Flash notices (errors like "storage unavailable", validation, ...) -->
-{% if messages %}
-<div class="chat-notices">
-  {% for notice in messages %}
-    <div class="alert {% if notice.tags == 'error' %}alert-error{% elif notice.tags == 'success' %}alert-success{% else %}alert-info{% endif %}">
-      {{ notice }}
-    </div>
-  {% endfor %}
-</div>
-{% endif %}
+<div class="messenger">
 
-<div class="card chat-card">
-
-  <!-- Header -->
-  <div class="chat-head">
-
-    <a href="{% url 'chat:home-view' %}" class="chat-back" title="Back to chats" aria-label="Back to chats">←</a>
-
-    <!-- Profile Pic -->
-    <a href="{% url 'user_profile' other_user.username %}" class="chat-head-avatar" aria-label="View profile">
-    {% if other_user.profilepic.profile_pic %}
-      <img src="{{ other_user.profilepic.profile_pic.url }}" alt="">
-    {% else %}
-      <div class="avatar-placeholder">
-        {{ other_user.username|first|upper }}
+  <!-- ============ Conversation list (desktop) ============ -->
+  <aside class="conversation-pane" aria-label="Conversations">
+    <div class="conversation-head">
+      <div>
+        <span class="eyebrow">Inbox</span>
+        <h1 class="conversation-title">
+          Messages
+          <span class="count-pill" id="chat-count"></span>
+        </h1>
       </div>
+    </div>
+
+    <form class="search-field" method="GET" action="{% url 'chat:search-view' %}" role="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <input type="text" name="q" placeholder="Search by username…" autocomplete="off" aria-label="Search people by username">
+      <button type="submit" class="search-submit" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+      </button>
+    </form>
+
+    <!-- The active conversation is rendered immediately; the existing inbox
+         API fills in the rest and keeps previews fresh. -->
+    <div id="conversation-list" class="conversation-list"
+         data-active-user-id="{{ other_user.id }}"
+         data-active-username="{{ other_user.username }}"
+         data-active-initial="{{ other_user.username|first|upper }}"
+         data-active-avatar="{% if other_user.profilepic.profile_pic %}{{ other_user.profilepic.profile_pic.url }}{% endif %}"
+         data-active-url="{% url 'chat:conversation-view' other_user.username %}"
+         data-active-online="{% if other_user.is_online %}true{% else %}false{% endif %}"
+         aria-label="Your conversations">
+
+      {% with last_msg=chat_messages.last %}
+      <a href="{% url 'chat:conversation-view' other_user.username %}"
+         data-user-id="{{ other_user.id }}"
+         class="conversation-item is-active"
+         aria-current="page">
+        <span class="conversation-avatar">
+          {% if other_user.profilepic.profile_pic %}
+            <img src="{{ other_user.profilepic.profile_pic.url }}" class="avatar" alt="">
+          {% else %}
+            <span class="avatar-placeholder" aria-hidden="true">{{ other_user.username|first|upper }}</span>
+          {% endif %}
+          <span class="status-dot chat-presence-dot" id="dot-{{ other_user.id }}"
+                style="{% if other_user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"
+                title="{% if other_user.is_online %}Online{% else %}Offline{% endif %}"></span>
+        </span>
+        <span class="conversation-main">
+          <span class="conversation-top">
+            <span class="conversation-name">{{ other_user.username }}</span>
+            {% if last_msg %}<span class="conversation-time">{{ last_msg.timestamp|date:"g:i A" }}</span>{% endif %}
+          </span>
+          <span class="conversation-bottom">
+            <span class="conversation-preview">{% if last_msg %}Open conversation{% else %}Start the conversation{% endif %}</span>
+          </span>
+        </span>
+      </a>
+      {% endwith %}
+
+      <div class="conversation-skeleton" aria-hidden="true">
+        <span class="sk-avatar"></span>
+        <span class="sk-lines"><span class="sk-line"></span><span class="sk-line short"></span></span>
+      </div>
+      <div class="conversation-skeleton" aria-hidden="true">
+        <span class="sk-avatar"></span>
+        <span class="sk-lines"><span class="sk-line"></span><span class="sk-line short"></span></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ Chat ============ -->
+  <section class="chat-workspace" aria-label="Conversation with {{ other_user.username }}">
+
+    {% if messages %}
+    <div class="chat-notices" role="status">
+      {% for notice in messages %}
+        <div class="alert {% if notice.tags == 'error' %}alert-error{% elif notice.tags == 'success' %}alert-success{% else %}alert-info{% endif %}">
+          {{ notice }}
+        </div>
+      {% endfor %}
+    </div>
     {% endif %}
-    </a>
 
-    <div class="chat-head-info">
-      <div class="chat-head-name">
-        {{ other_user.username }}
-        <span id="online-indicator" class="status-dot"
-              style="{% if other_user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"
-              title="{% if other_user.is_online %}Online{% else %}Offline{% endif %}"></span>
-      </div>
-      <div id="last-seen-text">
-        {% if other_user.is_online %}
-          Online
-        {% elif other_user.last_seen %}
-          Last seen {{ other_user.last_seen|timesince }} ago
-        {% else %}
-          Offline
-        {% endif %}
-      </div>
-    </div>
-  </div>
+    <div class="card chat-card">
 
-  <!-- Messages -->
-  <div id="msg-box">
-    {% for msg in chat_messages %}
-      <div class="message {% if msg.sender == request.user %}message-own{% else %}message-other{% endif %}"
-           data-message-id="{{ msg.id }}" data-sender-id="{{ msg.sender.id }}"
-           data-read="{% if msg.is_read %}true{% else %}false{% endif %}"
-           data-delivered="{% if msg.is_delivered %}true{% else %}false{% endif %}">
+      <!-- Header -->
+      <header class="chat-head">
+        <a href="{% url 'chat:home-view' %}" class="chat-back" title="Back to conversations" aria-label="Back to conversations">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
 
-        {% if msg.photo %}
-          <img src="{{ msg.photo.url }}" class="msg-photo" alt=""
-               onclick="window.open(this.src)">
-        {% endif %}
+        <a href="{% url 'user_profile' other_user.username %}" class="chat-head-avatar" aria-label="View {{ other_user.username }}'s profile">
+          {% if other_user.profilepic.profile_pic %}
+            <img src="{{ other_user.profilepic.profile_pic.url }}" alt="">
+          {% else %}
+            <span class="avatar-placeholder" aria-hidden="true">{{ other_user.username|first|upper }}</span>
+          {% endif %}
+        </a>
 
-        {% if msg.text %}
-          <div class="msg-bubble">
-            {{ msg.text }}
-            {% if msg.sender == request.user %}
-              <span class="read-status" style="font-size:10px;margin-left:8px;opacity:0.9;white-space:nowrap;{% if msg.is_read %}color:#4ade80;{% elif msg.is_delivered %}color:rgba(255,255,255,0.9);{% else %}color:rgba(255,255,255,0.6);{% endif %}"
+        <div class="chat-head-info">
+          <div class="chat-head-name">{{ other_user.username }}</div>
+          <div class="chat-head-status">
+            <span id="online-indicator" class="status-dot"
+                  style="{% if other_user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"
+                  title="{% if other_user.is_online %}Online{% else %}Offline{% endif %}"></span>
+            <span id="last-seen-text">
+              {% if other_user.is_online %}
+                Online
+              {% elif other_user.last_seen %}
+                Last seen {{ other_user.last_seen|timesince }} ago
+              {% else %}
+                Offline
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Message history -->
+      <div id="msg-box" aria-label="Message history">
+        {% for msg in chat_messages %}
+          <div class="message {% if msg.sender == request.user %}message-own{% else %}message-other{% endif %}"
+               data-message-id="{{ msg.id }}" data-sender-id="{{ msg.sender.id }}"
+               data-read="{% if msg.is_read %}true{% else %}false{% endif %}"
+               data-delivered="{% if msg.is_delivered %}true{% else %}false{% endif %}">
+
+            {% if msg.photo %}
+              <img src="{{ msg.photo.url }}" class="msg-photo" alt="Shared photo" loading="lazy" decoding="async" onclick="window.open(this.src)">
+            {% endif %}
+
+            {% if msg.text %}
+              <div class="msg-bubble">{{ msg.text }}{% if msg.sender == request.user %}<span class="read-status" style="font-size:10px;margin-left:8px;opacity:0.9;white-space:nowrap;{% if msg.is_read %}color:#4ade80;{% elif msg.is_delivered %}color:rgba(255,255,255,0.9);{% else %}color:rgba(255,255,255,0.6);{% endif %}"
                     data-message-id="{{ msg.id }}"
                     data-read="{% if msg.is_read %}true{% else %}false{% endif %}"
-                    data-delivered="{% if msg.is_delivered %}true{% else %}false{% endif %}">{% if msg.is_read %}✓✓{% elif msg.is_delivered %}✓✓{% else %}✓{% endif %}</span>
+                    data-delivered="{% if msg.is_delivered %}true{% else %}false{% endif %}">{% if msg.is_read %}✓✓{% elif msg.is_delivered %}✓✓{% else %}✓{% endif %}</span>{% endif %}</div>
+            {% elif msg.photo and msg.sender == request.user %}
+              <!-- photo-only message: tick lives in its own row -->
+              <div class="msg-tick-row">
+                <span class="read-status" style="font-size:10px;opacity:0.9;white-space:nowrap;{% if msg.is_read %}color:#4ade80;{% elif msg.is_delivered %}color:rgba(255,255,255,0.9);{% else %}color:rgba(255,255,255,0.6);{% endif %}"
+                      data-message-id="{{ msg.id }}"
+                      data-read="{% if msg.is_read %}true{% else %}false{% endif %}"
+                      data-delivered="{% if msg.is_delivered %}true{% else %}false{% endif %}">{% if msg.is_read %}✓✓{% elif msg.is_delivered %}✓✓{% else %}✓{% endif %}</span>
+              </div>
             {% endif %}
-          </div>
-        {% elif msg.photo and msg.sender == request.user %}
-          <!-- photo-only message: tick lives in its own row -->
-          <div class="msg-tick-row">
-            <span class="read-status" style="font-size:10px;opacity:0.9;white-space:nowrap;{% if msg.is_read %}color:#4ade80;{% elif msg.is_delivered %}color:rgba(255,255,255,0.9);{% else %}color:rgba(255,255,255,0.6);{% endif %}"
-                  data-message-id="{{ msg.id }}"
-                  data-read="{% if msg.is_read %}true{% else %}false{% endif %}"
-                  data-delivered="{% if msg.is_delivered %}true{% else %}false{% endif %}">{% if msg.is_read %}✓✓{% elif msg.is_delivered %}✓✓{% else %}✓{% endif %}</span>
-          </div>
-        {% endif %}
 
-        <div class="msg-time">
-          {{ msg.timestamp|date:"d M, g:i A" }}
+            <div class="msg-time">
+              {{ msg.timestamp|date:"d M, g:i A" }}
+            </div>
+          </div>
+        {% empty %}
+          <div class="empty-state">
+            <span class="empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            </span>
+            <span class="empty-title">No messages yet — say hi!</span>
+            <span class="empty-text">Messages you send appear here in real time.</span>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Typing indicator -->
+      <div id="typing-indicator" role="status" aria-live="polite">
+        <span id="typing-text"></span>
+      </div>
+
+      <!-- Composer -->
+      <form id="msg-form" class="composer" method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div id="send-error" role="alert"></div>
+
+        <div class="composer-row">
+          <button type="button" id="photo-btn" title="Attach photo" aria-label="Attach photo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 16-5-5-6 6-2-2-5 5"/></svg>
+          </button>
+          <input type="text" name="text" id="msg-input" placeholder="Write a message…" autocomplete="off" aria-label="Message">
+          <button type="submit" id="send-btn" title="Send message" aria-label="Send message">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+          </button>
         </div>
-      </div>
-    {% empty %}
-      <div class="empty-state">
-        <span class="empty-title">No messages yet — say hi!</span>
-        <span class="empty-text">Messages you send appear here in real time.</span>
-      </div>
-    {% endfor %}
-  </div>
 
-  <!-- Typing indicator -->
-  <div id="typing-indicator">
-    <span id="typing-text"></span>
-  </div>
-
-  <!-- Input Box -->
-  <form id="msg-form" class="composer" method="POST" enctype="multipart/form-data">
-    {% csrf_token %}
-
-    <div id="send-error"></div>
-
-    <div class="composer-row">
-      <button type="button" id="photo-btn" title="Attach photo" aria-label="Attach photo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 16-5-5-6 6-2-2-5 5"/></svg>
-      </button>
-      <input type="text" name="text" id="msg-input" placeholder="Type a message..." autocomplete="off">
-      <button type="submit" id="send-btn">Send</button>
+        <div class="composer-row">
+          <input type="file" name="photo" id="photo" accept="image/*" style="display:none;">
+          <span id="photo-preview">1 image selected</span>
+        </div>
+      </form>
     </div>
-
-    <!-- Photo Upload -->
-    <div class="composer-row">
-      <input type="file" name="photo" id="photo" accept="image/*"
-             style="display:none;">
-      <span id="photo-preview">1 image selected</span>
-    </div>
-
-  </form>
+  </section>
 </div>
 
 <!-- Auto scroll to bottom -->
 <script>
+(function () {
   const box = document.getElementById('msg-box');
-  box.scrollTop = box.scrollHeight;
+  if (!box) return;
+
+  // Photos and webfonts finish loading after the first paint, which grows
+  // the feed. Track whether the reader is pinned to the newest message and
+  // re-pin only then — an intentional scroll up is never yanked back.
+  let pinned = true;
+
+  function pinToLatest() {
+    const distance = box.scrollHeight - box.scrollTop - box.clientHeight;
+    pinned = distance < 240;
+    if (pinned) {
+      box.scrollTop = box.scrollHeight;
+    }
+  }
+
+  function maybeRepin() {
+    if (pinned) {
+      box.scrollTop = box.scrollHeight;
+    }
+  }
+
+  pinToLatest();
+
+  window.addEventListener('load', maybeRepin);
+  box.querySelectorAll('img').forEach(function (img) {
+    if (img.complete) return;
+    img.addEventListener('load', maybeRepin, { once: true });
+    img.addEventListener('error', maybeRepin, { once: true });
+  });
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(maybeRepin);
+  }
+
+  // If the reader scrolls up far enough to break the pin, stop chasing.
+  box.addEventListener('scroll', function () {
+    const distance = box.scrollHeight - box.scrollTop - box.clientHeight;
+    pinned = distance < 240;
+  }, { passive: true });
+})();
 </script>
 
-<!-- WebSocket Chat Script -->
+<!-- WebSocket chat script (existing logic preserved) -->
 <script>
-  const currentUserId = {{ request.user.id }};
-  const currentUsername = '{{ request.user.username }}';
-  const otherUsername = '{{ other_user.username }}';
-  const otherUserId = {{ other_user.id }};
-  const csrfToken = '{{ csrf_token }}';
+{% include 'chat/_conversation_ws.js' %}
+</script>
 
-  let ws = null;
-  let reconnectAttempts = 0;
-  let reconnectTimer = null;
-  let pageUnloading = false;
-  let typingTimeout = null;
-  let isTyping = false;
-
-  // DOM elements
-  const msgBox = document.getElementById('msg-box');
-  const msgForm = document.getElementById('msg-form');
-  const msgInput = document.getElementById('msg-input');
-  const sendBtn = document.getElementById('send-btn');
-  const typingIndicator = document.getElementById('typing-indicator');
-  const typingText = document.getElementById('typing-text');
-  const onlineIndicator = document.getElementById('online-indicator');
-  const sendError = document.getElementById('send-error');
-
-  // --------------------------------------------------------------------- //
-  // App-wide presence: the socket lives in base.html (one per tab, open on
-  // every page). We only listen for events about THIS conversation's user,
-  // so status stays correct no matter which DM or page is open.
-  // --------------------------------------------------------------------- //
-  function requestOtherStatus() {
-    const socket = window.appPresenceSocket;
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: 'get_status', user_ids: [otherUserId] }));
-    }
-  }
-
-  window.addEventListener('presence-message', function(e) {
-    const data = e.detail;
-    if (!data) return;
-
-    if (data.type === 'presence_update' && data.user_id === otherUserId) {
-      updateUserStatus(data);
-    } else if (data.type === 'bulk_status' && data.statuses && data.statuses[String(otherUserId)]) {
-      const info = data.statuses[String(otherUserId)];
-      updateUserStatus({ status: info.status, last_seen: info.last_seen });
-    }
-  });
-  window.addEventListener('presence-open', requestOtherStatus);
-  if (window.appPresenceSocket && window.appPresenceSocket.readyState === WebSocket.OPEN) {
-    requestOtherStatus();
-  }
-
-  // Connect to WebSocket
-  function connect() {
-    if (pageUnloading) return;
-    // Never open a second socket while one is live (stray retry timer
-    // racing the 'online' event, pageshow, ...) — duplicate sockets would
-    // duplicate message frames and read/delivery handlers.
-    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
-      return;
-    }
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/chat/${otherUsername}/`;
-
-    ws = new WebSocket(wsUrl);
-
-    ws.onopen = function() {
-      console.log('WebSocket connected');
-      reconnectAttempts = 0;
-      clearTimeout(reconnectTimer);
-
-      // Request initial messages (optional - they're already loaded)
-      // Mark existing messages as read
-      // (the conversation IS open, so re-syncing read state on every
-      // reconnect is correct — the server re-flushes deliveries too)
-      markMessagesRead();
-    };
-
-    ws.onmessage = function(event) {
-      const data = JSON.parse(event.data);
-      handleWebSocketMessage(data);
-    };
-
-    ws.onclose = function() {
-      console.log('WebSocket disconnected');
-      attemptReconnect();
-    };
-
-    ws.onerror = function(error) {
-      console.error('WebSocket error:', error);
-    };
-  }
-
-  // Reconnect FOREVER with capped exponential backoff (1s, 2s, 4s, ... 30s).
-  // The old 5-attempt cap gave up silently after ~15s of outage, leaving the
-  // DM deaf (no messages, no presence, no tick updates) until a manual
-  // refresh — while delivery/read receipts are pushed over this socket.
-  function attemptReconnect() {
-    if (pageUnloading) return;
-    clearTimeout(reconnectTimer);
-    reconnectAttempts += 1;
-    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000);
-    reconnectTimer = setTimeout(connect, delay);
-  }
-
-  // Network is back: retry immediately instead of waiting out the backoff
-  // (the server flushes pending deliveries the moment we reconnect).
-  window.addEventListener('online', function() {
-    if (pageUnloading) return;
-    clearTimeout(reconnectTimer);
-    reconnectAttempts = 0;
-    connect();
-  });
-
-  // Page is going away (navigation / logout): stop retrying.
-  window.addEventListener('pagehide', function() {
-    pageUnloading = true;
-    clearTimeout(reconnectTimer);
-  });
-
-  // Restored from the back/forward cache: the socket was dropped while
-  // frozen — reopen it (fresh loads call connect() below instead).
-  window.addEventListener('pageshow', function(event) {
-    pageUnloading = false;
-    if (event.persisted) {
-      reconnectAttempts = 0;
-      connect();
-    }
-  });
-
-  function handleWebSocketMessage(data) {
-    switch(data.type) {
-      case 'message':
-        appendMessage(data.message);
-        // Auto-mark as read when received (only for messages from the other user)
-        if (data.message.sender_id !== currentUserId) {
-          markMessageAsRead(data.message.id);
-        }
-        break;
-      case 'message_delivered':
-        updateDeliveredStatus(data.message_ids);
-        break;
-      case 'user_status':
-        updateUserStatus(data);
-        break;
-      case 'messages_read':
-        updateReadStatus(data.message_ids);
-        break;
-      case 'typing':
-        showTypingIndicator(data);
-        break;
-    }
-  }
-
-  function escapeHtml(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  // Markup mirrors the server-rendered messages above — keep them in sync.
-  function appendMessage(message) {
-    if (!message) {
-      return;
-    }
-    // Check if message already exists
-    if (document.querySelector(`.message[data-message-id="${message.id}"]`)) {
-      return;
-    }
-
-    const isOwn = message.sender_id === currentUserId;
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message ' + (isOwn ? 'message-own' : 'message-other');
-    messageDiv.dataset.messageId = message.id;
-    messageDiv.dataset.senderId = message.sender_id;
-    messageDiv.dataset.read = message.is_read ? 'true' : 'false';
-    messageDiv.dataset.delivered = message.is_delivered ? 'true' : 'false';
-
-    let html = '';
-    if (message.photo_url) {
-      html += `<img src="${message.photo_url}" class="msg-photo" alt="" onclick="window.open(this.src)">`;
-    }
-    if (message.text) {
-      html += `<div class="msg-bubble">${escapeHtml(message.text)}${isOwn ? tickMarkup(message) : ''}</div>`;
-    } else if (message.photo_url && isOwn) {
-      // photo-only message: tick in its own row
-      html += `<div class="msg-tick-row">${tickMarkup(message)}</div>`;
-    }
-    html += `<div class="msg-time">${formatTime(message.timestamp)}</div>`;
-
-    messageDiv.innerHTML = html;
-    msgBox.appendChild(messageDiv);
-    scrollToBottom();
-  }
-
-  // 3-state tick: sent = single ✓, delivered = double ✓✓, read = double ✓✓ green
-  function tickMarkup(message) {
-    const state = message.is_read ? 'read' : (message.is_delivered ? 'delivered' : 'sent');
-    const text = state === 'sent' ? '✓' : '✓✓';
-    const color = state === 'read' ? '#4ade80' : (state === 'delivered' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)');
-    const margin = message.text ? 'margin-left:8px;' : '';
-    return `<span class="read-status" style="font-size:10px;${margin}opacity:0.9;white-space:nowrap;color:${color};"
-             data-message-id="${message.id}"
-             data-read="${message.is_read ? 'true' : 'false'}"
-             data-delivered="${message.is_delivered ? 'true' : 'false'}">${text}</span>`;
-  }
-
-  function updateUserStatus(data) {
-    // Ignore broadcasts about the current user's own connection status
-    if (data.username && data.username === currentUsername) {
-      return;
-    }
-
-    const isOnline = data.status === 'online';
-    onlineIndicator.style.background = isOnline ? '#4ade80' : '#9ca3af';
-    onlineIndicator.title = isOnline ? 'Online' : 'Offline';
-
-    const lastSeenEl = document.getElementById('last-seen-text');
-    if (lastSeenEl) {
-      if (isOnline) {
-        lastSeenEl.textContent = 'Online';
-      } else if (data.last_seen) {
-        lastSeenEl.textContent = 'Last seen ' + formatTime(data.last_seen);
-      } else {
-        lastSeenEl.textContent = 'Offline';
-      }
-    }
-  }
-
-  function updateDeliveredStatus(messageIds) {
-    messageIds.forEach(id => {
-      const statusEl = document.querySelector(`.read-status[data-message-id="${id}"]`);
-      // Never downgrade a tick that is already green (read).
-      if (statusEl && statusEl.dataset.read !== 'true') {
-        statusEl.textContent = '✓✓';
-        statusEl.style.color = 'rgba(255,255,255,0.9)';
-        statusEl.dataset.delivered = 'true';
-      }
-      const msgEl = document.querySelector(`.message[data-message-id="${id}"]`);
-      if (msgEl) {
-        msgEl.dataset.delivered = 'true';
-      }
-    });
-  }
-
-  function updateReadStatus(messageIds) {
-    messageIds.forEach(id => {
-      const statusEl = document.querySelector(`.read-status[data-message-id="${id}"]`);
-      if (statusEl) {
-        statusEl.textContent = '✓✓';
-        statusEl.style.color = '#4ade80';
-        statusEl.dataset.read = 'true';
-        statusEl.dataset.delivered = 'true';
-      }
-      const msgEl = document.querySelector(`.message[data-message-id="${id}"]`);
-      if (msgEl) {
-        msgEl.dataset.read = 'true';
-        msgEl.dataset.delivered = 'true';
-      }
-    });
-  }
-
-  function showTypingIndicator(data) {
-    if (data.username === currentUsername) {
-      return;
-    }
-
-    if (data.is_typing) {
-      typingText.textContent = `${data.username} is typing...`;
-      typingIndicator.style.display = 'block';
-    } else {
-      typingIndicator.style.display = 'none';
-    }
-  }
-
-  function formatTime(isoString) {
-    if (!isoString) {
-      return '';
-    }
-    const date = new Date(isoString);
-    if (isNaN(date.getTime())) {
-      return '';
-    }
-    const now = new Date();
-    const sameDay = date.toDateString() === now.toDateString();
-    const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    if (sameDay) {
-      return timeStr;
-    }
-    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ', ' + timeStr;
-  }
-
-  function scrollToBottom() {
-    msgBox.scrollTop = msgBox.scrollHeight;
-  }
-
-  // Send message via WebSocket
-  async function sendMessage(text) {
-    const formData = new FormData(msgForm);
-    if (text) {
-      formData.set('text', text);
-    }
-
-    const response = await fetch(`{% url 'chat:send-message-api' other_user.username %}`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrfToken,
-      },
-      body: formData,
-    });
-
-    let data = {};
-    try {
-      data = await response.json();
-    } catch (e) {
-      // non-JSON error page (proxy/502) — fall through to the status text
-    }
-    if (!response.ok) {
-      throw new Error(data.error || `Could not send the message (HTTP ${response.status}). Please try again.`);
-    }
-
-    if (data.message) {
-      appendMessage(data.message);
-    }
-  }
-
-  // Mark messages as read
-  function markMessagesRead() {
-    const unreadMessages = document.querySelectorAll('.message:not([data-read="true"])');
-    const messageIds = [];
-    unreadMessages.forEach(el => {
-      const id = el.dataset.messageId;
-      const senderId = parseInt(el.dataset.senderId || '0', 10);
-      if (id && senderId !== currentUserId) {
-        messageIds.push(parseInt(id));
-      }
-    });
-
-    if (messageIds.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'read',
-        message_ids: messageIds
-      }));
-
-      unreadMessages.forEach(el => {
-        const senderId = parseInt(el.dataset.senderId || '0', 10);
-        if (senderId !== currentUserId) {
-          el.dataset.read = 'true';
-        }
-      });
-    }
-  }
-
-  function markMessageAsRead(messageId) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'read',
-        message_ids: [messageId]
-      }));
-    }
-  }
-
-  // Handle form submission
-  const photoInput = document.getElementById('photo');
-  const photoPreview = document.getElementById('photo-preview');
-  const photoBtn = document.getElementById('photo-btn');
-
-  if (photoBtn && photoInput) {
-    photoBtn.addEventListener('click', function() {
-      photoInput.click();
-    });
-  }
-
-  if (photoInput && photoPreview) {
-    photoInput.addEventListener('change', function() {
-      photoPreview.style.display = photoInput.files.length ? 'block' : 'none';
-    });
-  }
-
-  msgForm.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const text = msgInput.value.trim();
-
-    if (!text && !photoInput.files.length) {
-      return;
-    }
-
-    try {
-      await sendMessage(text);
-      msgInput.value = '';
-      photoInput.value = '';
-      if (photoPreview) {
-        photoPreview.style.display = 'none';
-      }
-      if (sendError) {
-        sendError.style.display = 'none';
-        sendError.textContent = '';
-      }
-      stopTyping();
-    } catch (error) {
-      console.error(error);
-      // Surface storage/server failures (e.g. image upload rejected) in the
-      // UI instead of failing silently in the console.
-      if (sendError) {
-        sendError.textContent = error && error.message
-          ? error.message
-          : 'Could not send the message. Please try again.';
-        sendError.style.display = 'block';
-      }
-    }
-  });
-
-  // Typing indicator
-  msgInput.addEventListener('input', function() {
-    if (!isTyping) {
-      isTyping = true;
-      sendTypingStatus(true);
-    }
-
-    clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(stopTyping, 2000);
-  });
-
-  function stopTyping() {
-    if (isTyping) {
-      isTyping = false;
-      sendTypingStatus(false);
-    }
-    clearTimeout(typingTimeout);
-  }
-
-  function sendTypingStatus(typing) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'typing',
-        is_typing: typing
-      }));
-    }
-  }
-
-  // Mobile keyboard / viewport: keep the newest messages above the composer.
-  // Chrome resizes the layout viewport (interactive-widget=resizes-content,
-  // so 100dvh shrinks with it); iOS resizes only the visual viewport —
-  // re-pin the scroll there too when the keyboard opens or closes.
-  msgInput.addEventListener('focus', function() {
-    setTimeout(scrollToBottom, 250);
-  });
-
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', function() {
-      scrollToBottom();
-    });
-  }
-
-  // Initialize
-  connect();
-
-  // Clean up on page unload (flag first so onclose does not schedule a
-  // reconnect for a document that is going away)
-  window.addEventListener('beforeunload', function() {
-    pageUnloading = true;
-    clearTimeout(reconnectTimer);
-    if (ws) {
-      ws.close();
-    }
-  });
+<!-- Conversation list refresh using the existing inbox API -->
+<script>
+{% include 'chat/_conversation_list.js' %}
 </script>
 
 {% endblock %}
