@@ -669,3 +669,20 @@
 }
 
 @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+/* ==========================================================================
+   Dark mode — chat-specific overrides
+   ========================================================================== */
+:root[data-theme="dark"] .conversation-item.is-active{
+  background:linear-gradient(135deg,rgba(124,92,255,.20),rgba(168,85,247,.08));
+}
+:root[data-theme="dark"] .chat-head{
+  background:rgba(13,17,32,.94);
+  border-bottom-color:var(--line);
+}
+:root[data-theme="dark"] .conversation-skeleton .sk-avatar,
+:root[data-theme="dark"] .conversation-skeleton .sk-line{
+  background:linear-gradient(90deg,var(--surface-tint) 25%,var(--surface) 50%,var(--surface-tint) 75%);
+  background-size:200% 100%;
+  animation:shimmer 1.4s infinite linear;
+}

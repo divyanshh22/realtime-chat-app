@@ -62,6 +62,8 @@ def _build_home_inbox_context(request):
         user.last_message_preview = (last_message.text or 'Photo') if last_message else ''
         user.last_message_time = last_message.timestamp if last_message else None
         user.unread_count = unread_count_by_user.get(user.id, 0)
+        # Build display name for template use
+        user.display_name = ' '.join(filter(None, [user.first_name, user.last_name])) or user.username
 
     chat_users.sort(key=lambda user: (user.last_message.timestamp if user.last_message else timezone.datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
 
@@ -149,9 +151,14 @@ def home_inbox_api(request):
     context = _build_home_inbox_context(request)
     payload = []
     for user in context['chat_users']:
+        # Build display name: first_name + last_name, or username as fallback
+        display_name = ' '.join(filter(None, [user.first_name, user.last_name])) or user.username
         payload.append({
             'id': user.id,
             'username': user.username,
+            'display_name': display_name,
+            'first_name': user.first_name or '',
+            'last_name': user.last_name or '',
             'preview': user.last_message_preview,
             'last_message_time': user.last_message_time.isoformat() if user.last_message_time else None,
             'unread_count': user.unread_count,
@@ -253,6 +260,11 @@ def conversation_view(request, username):
 
     # Get online status from DB first, with Redis as a fallback
     other_user.is_online, other_user.last_seen_str = get_user_presence(other_user.id)
+    # Display identity for the UI (first+last name, username fallback)
+    other_user.display_name = (
+        ' '.join(filter(None, [other_user.first_name, other_user.last_name]))
+        or other_user.username
+    )
 
     return render(request, 'chat/conversation.html', {
         'other_user': other_user,

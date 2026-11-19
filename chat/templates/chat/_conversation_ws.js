@@ -192,6 +192,9 @@
     messageDiv.innerHTML = html;
     msgBox.appendChild(messageDiv);
     scrollToBottom();
+
+    // Notify the conversation list to re-sort (newest message moves to top)
+    window.dispatchEvent(new Event('inbox-refresh'));
   }
 
   // 3-state tick: sent = single ✓, delivered = double ✓✓, read = double ✓✓ green

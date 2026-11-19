@@ -17,14 +17,11 @@
       </div>
     </div>
 
-    <!-- Search uses the existing search view -->
-    <form class="search-field" method="GET" action="{% url 'chat:search-view' %}" role="search">
+    <!-- Search existing conversations (WhatsApp-style) -->
+    <div class="search-field" role="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
-      <input type="text" name="q" placeholder="Search by username…" autocomplete="off" aria-label="Search people by username">
-      <button type="submit" class="search-submit" aria-label="Search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
-      </button>
-    </form>
+      <input type="text" id="conversation-search" placeholder="Search conversations…" autocomplete="off" aria-label="Search conversations">
+    </div>
 
     <div id="chat-list" class="conversation-list" aria-label="Your conversations">
     {% if chat_users %}
@@ -46,7 +43,7 @@
 
         <span class="conversation-main">
           <span class="conversation-top">
-            <span class="conversation-name">{{ user.username }}</span>
+            <span class="conversation-name">{{ user.display_name }}</span>
             {% if user.last_message_time %}
               <span class="conversation-time">{{ user.last_message_time|date:"g:i A" }}</span>
             {% endif %}
@@ -150,8 +147,8 @@
         return div.innerHTML;
     }
 
-    function toInitials(username) {
-        return (username || '').split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase();
+    function toInitials(name) {
+        return (name || '').split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase();
     }
 
     function formatTime(isoString) {
@@ -188,18 +185,19 @@
 
         const scrollTop = container.scrollTop;
         container.innerHTML = users.map(user => {
-            const name = escapeHtml(user.username);
+            const name = escapeHtml(user.display_name || user.username || '');
+            const username = escapeHtml(user.username || '');
             const preview = escapeHtml(user.preview || 'Start a conversation');
             const time = formatTime(user.last_message_time);
             const profileMarkup = user.profile_pic_url
                 ? `<img src="${user.profile_pic_url}" class="avatar" alt="">`
-                : `<span class="avatar-placeholder" aria-hidden="true">${escapeHtml(toInitials(user.username))}</span>`;
+                : `<span class="avatar-placeholder" aria-hidden="true">${escapeHtml(toInitials(name))}</span>`;
             const unreadMarkup = user.unread_count > 0
                 ? `<span class="chat-unread-badge">${user.unread_count}</span>`
                 : '';
 
             return `
-                <a href="${user.conversation_url}" data-user-id="${user.id}" class="conversation-item${user.unread_count > 0 ? ' has-unread' : ''}">
+                <a href="${user.conversation_url}" data-user-id="${user.id}" data-username="${username}" data-display-name="${name}" class="conversation-item${user.unread_count > 0 ? ' has-unread' : ''}">
                     <span class="conversation-avatar">
                         ${profileMarkup}
                         <span class="status-dot chat-presence-dot" id="dot-${user.id}" style="background:${user.is_online ? 'var(--online)' : 'var(--offline)'};" title="${user.is_online ? 'Online' : 'Offline'}"></span>
@@ -236,6 +234,43 @@
 
     refreshInbox();
     setInterval(refreshInbox, 5000);
+
+    // Trigger an immediate refresh when a message is sent or received on this
+    // page (via the WebSocket), so the conversation re-sorts to the top.
+    window.addEventListener('inbox-refresh', function () {
+      refreshInbox();
+    });
+
+    // Conversation search: filter existing conversations only (WhatsApp-style)
+    var searchInput = document.getElementById('conversation-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        var query = this.value.toLowerCase().trim();
+        var items = document.querySelectorAll('#chat-list .conversation-item');
+        var visibleCount = 0;
+
+        items.forEach(function(item) {
+          var nameEl = item.querySelector('.conversation-name');
+          var previewEl = item.querySelector('.conversation-preview');
+          if (!nameEl) return;
+
+          var name = (nameEl.textContent || '').toLowerCase();
+          var preview = (previewEl ? previewEl.textContent || '' : '').toLowerCase();
+          var userId = item.dataset.userId || '';
+
+          // Match against display name, username (stored in data), or preview text
+          var matches = !query || name.indexOf(query) >= 0 || preview.indexOf(query) >= 0;
+          item.style.display = matches ? '' : 'none';
+          if (matches) visibleCount++;
+        });
+
+        // Update count pill
+        var countEl = document.getElementById('chat-count');
+        if (countEl) {
+          countEl.textContent = visibleCount || '';
+        }
+      });
+    }
 })();
 </script>
 {% endblock %}

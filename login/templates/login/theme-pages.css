@@ -657,3 +657,40 @@ body.auth-view .public-footer{display:none;}
   .auth-hero{padding:20px 16px;}
   .auth-hero h1{font-size:1.4rem;}
 }
+
+/* ==========================================================================
+   Dark mode — pages-specific overrides
+   ========================================================================== */
+:root[data-theme="dark"] .auth-hero{
+  background:
+    radial-gradient(120% 80% at 8% 0%,rgba(124,92,255,.25),transparent 60%),
+    radial-gradient(90% 60% at 110% 100%,rgba(79,124,255,.12),transparent 58%),
+    linear-gradient(155deg,#0d1224 0%,#080b16 100%);
+}
+:root[data-theme="dark"] .auth-hero::before{border-color:rgba(167,139,250,.08);}
+:root[data-theme="dark"] .auth-hero::after{border-color:rgba(167,139,250,.06);}
+:root[data-theme="dark"] .auth-hero-foot{border-top-color:rgba(255,255,255,.06);}
+:root[data-theme="dark"] .page-card{background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.2),0 8px 24px rgba(0,0,0,.3);}
+:root[data-theme="dark"] .person-row{background:var(--surface-muted);}
+:root[data-theme="dark"] .person-row:hover{background:var(--surface);}
+:root[data-theme="dark"] .profile-cover{
+  background:
+    radial-gradient(80% 150% at 18% 0%,rgba(168,85,247,.25),transparent 62%),
+    radial-gradient(90% 150% at 100% 100%,rgba(79,124,255,.12),transparent 60%),
+    linear-gradient(135deg,#0d1224,#080b16);
+}
+:root[data-theme="dark"] .profile-cover::after{border-color:rgba(255,255,255,.06);}
+:root[data-theme="dark"] .about-hero{
+  background:
+    radial-gradient(80% 130% at 8% 0%,rgba(124,92,255,.08),transparent 62%),
+    radial-gradient(70% 100% at 100% 100%,rgba(168,85,247,.04),transparent 60%),
+    var(--surface);
+}
+:root[data-theme="dark"] .about-hero::after{border-color:rgba(124,92,255,.06);}
+:root[data-theme="dark"] .credit-card{
+  background:linear-gradient(135deg,rgba(124,92,255,.08),rgba(168,85,247,.05));
+  border-color:var(--violet-line);
+}
+:root[data-theme="dark"] .offer-item{background:var(--surface-muted);}
+:root[data-theme="dark"] .offer-item:hover{background:var(--surface);}
+:root[data-theme="dark"] .tech-chip{background:var(--surface-muted);}

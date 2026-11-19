@@ -25,11 +25,17 @@
       </button>
     </form>
 
+    <div class="search-field" role="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <input type="text" id="conversation-search" placeholder="Search conversations…" autocomplete="off" aria-label="Search conversations">
+    </div>
+
     <!-- The active conversation is rendered immediately; the existing inbox
          API fills in the rest and keeps previews fresh. -->
     <div id="conversation-list" class="conversation-list"
          data-active-user-id="{{ other_user.id }}"
          data-active-username="{{ other_user.username }}"
+         data-active-display-name="{{ other_user.display_name }}"
          data-active-initial="{{ other_user.username|first|upper }}"
          data-active-avatar="{% if other_user.profilepic.profile_pic %}{{ other_user.profilepic.profile_pic.url }}{% endif %}"
          data-active-url="{% url 'chat:conversation-view' other_user.username %}"
@@ -39,6 +45,8 @@
       {% with last_msg=chat_messages.last %}
       <a href="{% url 'chat:conversation-view' other_user.username %}"
          data-user-id="{{ other_user.id }}"
+         data-username="{{ other_user.username }}"
+         data-display-name="{{ other_user.display_name }}"
          class="conversation-item is-active"
          aria-current="page">
         <span class="conversation-avatar">
@@ -53,7 +61,7 @@
         </span>
         <span class="conversation-main">
           <span class="conversation-top">
-            <span class="conversation-name">{{ other_user.username }}</span>
+            <span class="conversation-name">{{ other_user.display_name }}</span>
             {% if last_msg %}<span class="conversation-time">{{ last_msg.timestamp|date:"g:i A" }}</span>{% endif %}
           </span>
           <span class="conversation-bottom">
@@ -104,7 +112,7 @@
         </a>
 
         <div class="chat-head-info">
-          <div class="chat-head-name">{{ other_user.username }}</div>
+          <div class="chat-head-name">{{ other_user.display_name }}</div>
           <div class="chat-head-status">
             <span id="online-indicator" class="status-dot"
                   style="{% if other_user.is_online %}background:var(--online);{% else %}background:var(--offline);{% endif %}"

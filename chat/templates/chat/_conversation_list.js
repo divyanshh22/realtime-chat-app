@@ -8,6 +8,7 @@
   const searchUrl = '{% url "chat:search-view" %}';
   const activeUserId = String(list.dataset.activeUserId || '');
   const activeUsername = list.dataset.activeUsername || '';
+  const activeDisplayName = list.dataset.activeDisplayName || activeUsername;
   const activeInitial = list.dataset.activeInitial || '';
   const activeAvatar = list.dataset.activeAvatar || '';
   const activeUrl = list.dataset.activeUrl || '#';
@@ -22,8 +23,12 @@
     return div.innerHTML;
   }
 
-  function toInitials(username) {
-    return (username || '').split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase();
+  function displayName(user) {
+    return user.display_name || [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || '';
+  }
+
+  function toInitials(name) {
+    return (name || '').split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase();
   }
 
   function formatTime(isoString) {
@@ -34,7 +39,8 @@
   }
 
   function rowMarkup(user, isActive, synthetic) {
-    const name = escapeHtml(user.username || '');
+    const name = escapeHtml(displayName(user));
+    const username = escapeHtml(user.username || '');
     const preview = escapeHtml(
       synthetic ? 'Start the conversation' : (user.preview || 'Start a conversation')
     );
@@ -49,7 +55,7 @@
       : `<span class="avatar-placeholder" aria-hidden="true">${escapeHtml(toInitials(name))}</span>`;
 
     return `
-      <a href="${href}" data-user-id="${user.id}" class="conversation-item${isActive ? ' is-active' : ''}${unread ? ' has-unread' : ''}"${isActive ? ' aria-current="page"' : ''}>
+      <a href="${href}" data-user-id="${user.id}" data-username="${username}" data-display-name="${name}" class="conversation-item${isActive ? ' is-active' : ''}${unread ? ' has-unread' : ''}"${isActive ? ' aria-current="page"' : ''}>
         <span class="conversation-avatar">
           ${avatarMarkup}
           <span class="status-dot chat-presence-dot" id="dot-${user.id}" style="background:${isOnline ? 'var(--online)' : 'var(--offline)'};" title="${isOnline ? 'Online' : 'Offline'}"></span>
@@ -121,6 +127,7 @@
       html += rowMarkup({
         id: activeUserId,
         username: activeUsername,
+        display_name: activeDisplayName,
         preview: '',
         last_message_time: null,
         unread_count: 0,
@@ -169,6 +176,12 @@
 
   loadConversations();
 
+  // Trigger an immediate refresh when a message is sent or received on this
+  // page (via the WebSocket), so the conversation re-sorts to the top.
+  window.addEventListener('inbox-refresh', function () {
+    loadConversations();
+  });
+
   // Only refresh while the desktop conversation pane is actually visible.
   setInterval(function () {
     if (!document.hidden && window.matchMedia('(min-width: 901px)').matches) {
@@ -184,4 +197,34 @@
     }
     wasWide = isWide;
   });
+
+  // Conversation search: filter existing conversations only (WhatsApp-style)
+  var searchInput = document.getElementById('conversation-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      var query = this.value.toLowerCase().trim();
+      var items = list.querySelectorAll('.conversation-item');
+      var visibleCount = 0;
+
+      items.forEach(function(item) {
+        var nameEl = item.querySelector('.conversation-name');
+        var previewEl = item.querySelector('.conversation-preview');
+        if (!nameEl) return;
+
+        var name = (nameEl.textContent || '').toLowerCase();
+        var username = (item.dataset.username || '').toLowerCase();
+        var displayName = (item.dataset.displayName || '').toLowerCase();
+        var preview = (previewEl ? previewEl.textContent || '' : '').toLowerCase();
+
+        var matches = !query || name.indexOf(query) >= 0 || username.indexOf(query) >= 0 || displayName.indexOf(query) >= 0 || preview.indexOf(query) >= 0;
+        item.style.display = matches ? '' : 'none';
+        if (matches) visibleCount++;
+      });
+
+      var countEl = document.getElementById('chat-count');
+      if (countEl) {
+        countEl.textContent = visibleCount || '';
+      }
+    });
+  }
 })();

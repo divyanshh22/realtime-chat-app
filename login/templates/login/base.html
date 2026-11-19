@@ -17,6 +17,15 @@
 {% include 'login/theme-chat.css' %}
 </style>
 
+<script>
+// Apply the saved theme before first paint so there is never a flash of the
+// wrong theme. Default is Light for users with no stored preference.
+(function(){
+  var t='light';
+  try{ if(localStorage.getItem('theme')==='dark') t='dark'; }catch(e){}
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 </head>
 <body class="{% block body_class %}{% endblock %}">
 
@@ -80,6 +89,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
         <span>Log out</span>
       </a>
+      <button id="theme-toggle" class="btn btn-ghost btn-sm" aria-label="Toggle theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v1M12 20v1M4.22 4.22l.71.71M18.36 18.36l.71.71M1 12h1M22 12h1M4.22 19.78l.71-.71M18.36 5.64l.71-.71"/><circle cx="12" cy="12" r="5"/></svg>
+      </button>
     </div>
   </aside>
 {% endif %}
@@ -95,6 +107,9 @@
         <span class="brand-word">WebChat</span>
       </a>
       <div class="mobile-actions">
+        <button id="theme-toggle" class="mobile-icon-btn" aria-label="Toggle theme" title="Toggle theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v1M12 20v1M4.22 4.22l.71.71M18.36 18.36l.71.71M1 12h1M22 12h1M4.22 19.78l.71-.71M18.36 5.64l.71-.71"/><circle cx="12" cy="12" r="5"/></svg>
+        </button>
         <a href="{% url 'profile-view' %}" class="mobile-avatar-link" aria-label="Your profile">
           {% with profile=user.profilepic %}
             {% if profile and profile.profile_pic %}
@@ -287,6 +302,15 @@
   if (window.appPresenceSocket && window.appPresenceSocket.readyState === WebSocket.OPEN) {
     online();
   }
+})();
+</script>
+<script>
+// Theme toggle (desktop sidebar + mobile appbar)
+(function(){
+  function getTheme(){return document.documentElement.getAttribute('data-theme')||'light';}
+  function setTheme(t){document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('theme',t);}catch(e){};}
+  function toggleTheme(){setTheme(getTheme()==='dark'?'light':'dark');}
+  document.getElementById('theme-toggle')?.addEventListener('click',toggleTheme);
 })();
 </script>
 {% endif %}

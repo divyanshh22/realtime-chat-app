@@ -810,3 +810,95 @@ body.chat-view .app-main{overflow:hidden;}
 @media (max-width:400px){
   .public-links > a[href*="about"]{display:none;}
 }
+
+/* ==========================================================================
+   Dark mode theme
+   ========================================================================== */
+:root[data-theme="dark"]{
+  /* Backgrounds */
+  --app-bg:#0b0f1a;
+  --surface:#0f1422;
+  --surface-muted:#0d1120;
+  --surface-tint:#12182a;
+  --surface-deep:#0a0e18;
+
+  /* Lines and borders */
+  --line:#1f2740;
+  --line-strong:#2a3355;
+
+  /* Text */
+  --text:#e8ebff;
+  --text-soft:#cdd3f0;
+  --muted:#9aa3c7;
+  --muted-strong:#8a93b8;
+  --muted-light:#6b7395;
+
+  /* Violet accents stay the same, adjust for dark mode contrast */
+  --violet-soft:#1a1535;
+  --violet-line:#2a1f4f;
+
+  /* Status colors */
+  --online:#22c55e;
+  --offline:#6b7280;
+  --danger-soft:#2a1015;
+  --danger-line:#4a1f2a;
+  --success-soft:#0f2a1a;
+  --success-line:#1f4a35;
+
+  /* Shadows are softer in dark mode */
+  --shadow-sm:0 1px 2px rgba(0,0,0,.2),0 8px 24px rgba(0,0,0,.3);
+  --shadow-md:0 22px 60px rgba(0,0,0,.4);
+  --shadow-lg:0 34px 90px rgba(0,0,0,.5);
+  --shadow-violet:0 10px 26px rgba(124,92,255,.15);
+}
+
+/* Dark mode sidebar */
+:root[data-theme="dark"] .app-sidebar{
+  background:
+    radial-gradient(120% 60% at 8% -6%,rgba(124,92,255,.20),transparent 54%),
+    radial-gradient(90% 50% at 110% 100%,rgba(79,124,255,.10),transparent 55%),
+    linear-gradient(180deg,#0d1224 0%,#080b16 100%);
+  border-right-color:rgba(255,255,255,.04);
+}
+:root[data-theme="dark"] .side-link:hover{background:rgba(255,255,255,.04);}
+:root[data-theme="dark"] .sidebar-user{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.05);}
+:root[data-theme="dark"] .sidebar-user:hover{background:rgba(255,255,255,.05);}
+:root[data-theme="dark"] .sidebar-logout:hover{background:rgba(248,113,113,.08);}
+:root[data-theme="dark"] .sidebar-foot{border-top-color:rgba(255,255,255,.06);}
+
+/* Dark mode mobile bars */
+:root[data-theme="dark"] .mobile-appbar{
+  background:rgba(11,15,26,.96);
+  border-bottom-color:var(--line);
+}
+:root[data-theme="dark"] .mobile-tabbar{
+  background:rgba(11,15,26,.98);
+  border-top-color:var(--line);
+}
+:root[data-theme="dark"] .mobile-tabbar .mobile-tab.is-active{background:var(--violet-soft);}
+
+/* Dark mode public shell */
+:root[data-theme="dark"] .public-shell{
+  background:
+    radial-gradient(900px 520px at 88% -12%,rgba(124,92,255,.08),transparent 62%),
+    radial-gradient(760px 500px at 0% 104%,rgba(168,85,247,.05),transparent 62%),
+    var(--app-bg);
+}
+:root[data-theme="dark"] .public-links > a:hover{background:rgba(255,255,255,.05);}
+:root[data-theme="dark"] .public-footer{color:var(--muted-light);}
+
+/* Dark mode scrollbar */
+:root[data-theme="dark"] ::-webkit-scrollbar-track{background:transparent;}
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#2a3355;}
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover{background:#3a4470;}
+
+/* Dark mode: alert text must stay readable on the darker soft backgrounds */
+:root[data-theme="dark"] .alert-success{color:#7ee2a8;}
+:root[data-theme="dark"] .alert-success::before{background:rgba(34,197,94,.18);color:#4ade80;}
+:root[data-theme="dark"] .alert-error{color:#fca5a5;}
+:root[data-theme="dark"] .alert-error::before{background:rgba(220,38,38,.18);color:#f87171;}
+:root[data-theme="dark"] .alert-info{color:#c4b5fd;}
+:root[data-theme="dark"] .alert-info::before{background:rgba(124,92,255,.18);color:#c4b5fd;}
+:root[data-theme="dark"] .presence-badge.is-online{color:#4ade80;border-color:var(--success-line);background:var(--success-soft);}
+:root[data-theme="dark"] .btn-danger{color:#fca5a5;}
+:root[data-theme="dark"] .btn-danger:hover{background:var(--danger-soft);border-color:var(--danger-line);color:#f87171;}
