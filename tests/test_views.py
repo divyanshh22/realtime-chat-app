@@ -212,6 +212,9 @@ def test_home_inbox_api_shape_and_unread_count(auth_client, user, other_user, th
     assert set(entry.keys()) == {
         "id",
         "username",
+        "display_name",
+        "first_name",
+        "last_name",
         "preview",
         "last_message_time",
         "unread_count",
@@ -220,6 +223,12 @@ def test_home_inbox_api_shape_and_unread_count(auth_client, user, other_user, th
         "conversation_url",
     }
     assert entry["username"] == other_user.username
+    assert entry["display_name"] in {
+        other_user.username,
+        f"{other_user.first_name} {other_user.last_name}".strip(),
+    }
+    assert entry["first_name"] == other_user.first_name
+    assert entry["last_name"] == other_user.last_name
     assert entry["preview"] == "inbox preview"
     assert entry["unread_count"] == 1
     assert entry["conversation_url"] == f"/chat/{other_user.username}/"
