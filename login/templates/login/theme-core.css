@@ -67,6 +67,16 @@
 *::before,
 *::after{margin:0;padding:0;box-sizing:border-box;}
 
+/* Tell the browser which color scheme to use for native form controls
+   (inputs, selects, buttons, date pickers, etc.). Android Chrome in
+   particular renders these widgets in light mode unless we say otherwise. */
+:root{
+  color-scheme: light;
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+}
+
 html{
   -webkit-text-size-adjust:100%;
   height:100%;
@@ -876,6 +886,9 @@ body.chat-view .app-main{overflow:hidden;}
   border-top-color:var(--line);
 }
 :root[data-theme="dark"] .mobile-tabbar .mobile-tab.is-active{background:var(--violet-soft);}
+:root[data-theme="dark"] .mobile-icon-btn:hover{background:var(--surface-tint);color:var(--text);}
+:root[data-theme="dark"] .mobile-appbar .brand-word{color:var(--text);}
+:root[data-theme="dark"] .mobile-appbar .brand-mark{box-shadow:0 6px 16px rgba(124,92,255,.25);}
 
 /* Dark mode public shell */
 :root[data-theme="dark"] .public-shell{
