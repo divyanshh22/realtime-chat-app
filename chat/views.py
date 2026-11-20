@@ -421,3 +421,36 @@ def get_user_status_api(request, user_id):
         })
     except CustomUser.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
+
+
+@login_required(login_url='login-view')
+@require_http_methods(["GET"])
+def storage_probe(request):
+    """Diagnostic endpoint: report which media backend is active and whether
+    it can actually write a file.
+
+    Returns 200 with backend info (always, even on failure) so the dashboard
+    can tell local-filesystem vs Cloudinary apart without needing to log in
+    to the server. The actual write is wrapped in try/except so a broken
+    backend never 500s the page load.
+    """
+    import io
+    from django.core.files.storage import default_storage
+
+    backend = type(default_storage).__module__
+    info = {'backend': backend, 'upload_ok': False, 'url': None, 'error': None}
+
+    try:
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new('RGB', (10, 10), 'red').save(buf, 'PNG')
+        buf.seek(0)
+        name = default_storage.save('probe/theme_fix.png', buf)
+        info['upload_ok'] = True
+        info['url'] = default_storage.url(name)
+        info['name'] = name
+        default_storage.delete(name)
+    except Exception as exc:
+        info['error'] = f'{type(exc).__name__}: {exc}'
+
+    return JsonResponse(info)

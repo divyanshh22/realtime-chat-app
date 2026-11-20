@@ -11,4 +11,5 @@ urlpatterns = [
     path('api/messages/<str:username>/history/', views.get_messages_api, name='messages-api'),
     path('<str:username>/', views.conversation_view, name='conversation-view'),
     path('api/status/<int:user_id>/', views.get_user_status_api, name='user-status-api'),
+    path('api/storage-probe/', views.storage_probe, name='storage-probe'),
 ]
